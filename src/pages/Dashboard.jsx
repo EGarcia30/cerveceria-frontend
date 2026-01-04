@@ -1,6 +1,6 @@
 // ✅ DASHBOARD COMPLETO React - Con Filtro Fecha SV
 import React, { useState, useEffect } from 'react';
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const apiURL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const Dashboard = () => {
     const [dashboard, setDashboard] = useState(null);

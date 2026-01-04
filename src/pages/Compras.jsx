@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const apiURL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const Compras = () => {
     // Estados principales
