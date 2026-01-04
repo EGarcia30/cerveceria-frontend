@@ -19,7 +19,7 @@ const Dashboard = () => {
             const dashboardData = await dashboardRes.json();
             
             // 📦 Productos stock
-            const productosRes = await fetch('${apiURL}/dashboard/productos');
+            const productosRes = await fetch(`${apiURL}/dashboard/productos`);
             const productosData = await productosRes.json();
             
             // 💸 Ventas recientes (7 días)
