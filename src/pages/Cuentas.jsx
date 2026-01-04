@@ -1,0 +1,1041 @@
+import React, { useState, useEffect, useCallback } from 'react';
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+const Cuentas = () => {
+  // Estados principales
+    const [cuentas, setCuentas] = useState([]);
+    const [productos, setProductos] = useState([]);
+    const [mesas, setMesas] = useState([]);
+    const [pagination, setPagination] = useState({});
+    const [productosPagination, setProductosPagination] = useState({});
+    const [page, setPage] = useState(1);
+    const [productosPage, setProductosPage] = useState(1);
+    const [loading, setLoading] = useState(true);
+    const [updating, setUpdating] = useState(null);
+
+    // Modal nueva cuenta
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [createForm, setCreateForm] = useState({
+        cliente: '',
+        tipo_cuenta: 'individual',
+        mesa_id: null
+    });
+    const [selectedProductos, setSelectedProductos] = useState([]);
+    const [creatingCuenta, setCreatingCuenta] = useState(false);
+
+    // Modal detalle - REFACTORIZADO
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [selectedCuenta, setSelectedCuenta] = useState(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
+    const [editForm, setEditForm] = useState({ cliente: '', mesa_id: '' });
+    const [detalleProductos, setDetalleProductos] = useState([]); // Productos originales editables
+    const [editProductos, setEditProductos] = useState([]); // Productos nuevos
+    const [creatingCuentaDetalle, setCreatingCuentaDetalle] = useState(false);
+
+    // ✅ HANDLERS DETALLE SIMPLIFICADOS
+    const handleAumentarCantidadDetalle = (id) => {
+        // Actualizar productos originales
+        setDetalleProductos(prev => prev.map(p => 
+        p.id === id ? { ...p, cantidad: (Number(p.cantidad || 0) + 1) } : p
+        ));
+        // Actualizar productos nuevos
+        setEditProductos(prev => prev.map(p => 
+        p.id === id ? { ...p, cantidad: (Number(p.cantidad || 0) + 1) } : p
+        ));
+    };
+
+    const handleDisminuirCantidadDetalle = (id) => {
+        // Actualizar productos originales
+        setDetalleProductos(prev => prev
+        .map(p => p.id === id ? { ...p, cantidad: Math.max(1, (p.cantidad || 1) - 1) } : p)
+        .filter(p => p.cantidad > 0)
+        );
+        // Actualizar productos nuevos
+        setEditProductos(prev => prev
+        .map(p => p.id === id ? { ...p, cantidad: Math.max(1, (p.cantidad || 1) - 1) } : p)
+        .filter(p => p.cantidad > 0)
+        );
+    };
+
+    const handleEliminarProductoDetalle = (id) => {
+        setDetalleProductos(prev => prev.filter(p => p.id !== id));
+        setEditProductos(prev => prev.filter(p => p.id !== id));
+    };
+
+    const handleAgregarProductoDetalle = (producto) => {
+        const existe = editProductos.find(p => p.id === producto.id);
+        if (existe) {
+            setEditProductos(prev => prev.map(p => 
+            p.id === producto.id ? { ...p, cantidad: (p.cantidad || 0) + 1 } : p
+        ));
+        } else {
+            setEditProductos(prev => [...prev, { ...producto, cantidad: 1 }]);
+        }
+    };
+
+    // ✅ GUARDAR DETALLE
+    const handleGuardarDetalle = async () => {
+        if (!editForm.cliente) {
+            alert('El cliente es requerido');
+            return;
+        }
+
+        try {
+            setCreatingCuentaDetalle(true);
+            const todosProductos = [...detalleProductos, ...editProductos];
+
+            console.log(todosProductos);
+            const response = await fetch(`${apiURL}/cuentas/${selectedCuenta.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                cliente: editForm.cliente,
+                tipo_cuenta: editForm.tipo_cuenta,
+                mesa_id: editForm.mesa_id || null,
+                detalles: todosProductos.map(p => ({
+                    producto_id: p.producto_id || p.id,
+                    cantidad_vendida: p.cantidad,
+                    precio_compra_actual: p.precio_compra_actual || p.precio_compra,
+                    precio_venta: p.precio_venta || p.precioventa,
+                    descripcion: p.descripcion
+                }))
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                handleCerrarDetalle();
+                fetchCuentas(page);
+                fetchMesas();
+            } else {
+                alert('Error al guardar');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error de conexión');
+        } finally {
+            setCreatingCuentaDetalle(false);
+        }
+    };
+
+    // Fetch data (TODO IGUAL)
+    const fetchCuentas = async (currentPage = 1) => {
+        try {
+        setLoading(true);
+        const response = await fetch(`${apiURL}/cuentas?page=${currentPage}&limit=10`);
+        const data = await response.json();
+        if (data.success) {
+            setCuentas(data.data);
+            setPagination(data.pagination);
+        }
+        } catch (error) {
+        console.error('Error cargando cuentas:', error);
+        } finally {
+        setLoading(false);
+        }
+    };
+
+    const fetchProductos = async (currentPage = 1) => {
+        try {
+        const response = await fetch(`${apiURL}/productos?page=${currentPage}&limit=10`);
+        const data = await response.json();
+        if (data.success) {
+            setProductos(data.data);
+            setProductosPagination(data.pagination);
+        }
+        } catch (error) {
+        console.error('Error cargando productos:', error);
+        }
+    };
+
+    const fetchMesas = async () => {
+        try {
+        const response = await fetch(`${apiURL}/mesas`);
+        const data = await response.json();
+        if (data.success) setMesas(data.data);
+        } catch (error) {
+        console.error('Error cargando mesas:', error);
+        }
+    };
+
+    // Handlers Modal Nueva Cuenta (TODO IGUAL)
+    const handleTipoChange = (e) => {
+        setCreateForm({ ...createForm, tipo_cuenta: e.target.value, mesa_id: null });
+    };
+
+    const handleMesaSelect = (mesaId) => {
+        setCreateForm({ ...createForm, mesa_id: mesaId });
+    };
+
+    const handleCantidadChange = (productoId, nuevaCantidad) => {
+        setSelectedProductos(prev => 
+        prev.map(p => 
+            p.id === productoId 
+            ? { ...p, cantidad: nuevaCantidad || 1 }
+            : p
+        )
+        );
+    };
+
+    const handleAumentarCantidad = (productoId) => {
+        setSelectedProductos(prev => 
+        prev.map(p => 
+            p.id === productoId 
+            ? { 
+                ...p, 
+                cantidad: parseFloat((Number(p.cantidad || 1) + 1).toFixed(2))
+                } 
+            : p
+        )
+        );
+    };
+
+    const handleDisminuirCantidad = (productoId) => {
+        setSelectedProductos(prev => {
+        const cantidadActual = Number(prev.find(p => p.id === productoId)?.cantidad || 1);
+        if (cantidadActual <= 1) {
+            return prev.filter(p => p.id !== productoId);
+        }
+        
+        const nuevaCantidad = parseFloat((cantidadActual - 1).toFixed(2));
+        if (nuevaCantidad <= 0) {
+            return prev.filter(p => p.id !== productoId);
+        }
+
+        return prev.map(p => 
+            p.id === productoId 
+            ? { ...p, cantidad: nuevaCantidad } 
+            : p
+        );
+        });
+    };
+
+    const handleAgregarProducto = (producto) => {
+        const existe = selectedProductos.find(p => p.id === producto.id);
+        if (existe) {
+        setSelectedProductos(selectedProductos.map(p => 
+            p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p
+        ));
+        } else {
+        setSelectedProductos([...selectedProductos, { ...producto, cantidad: 1 }]);
+        }
+    };
+
+    const handleBorrarProducto = (productoId) => {
+        setSelectedProductos(selectedProductos.filter(p => p.id !== productoId));
+    };
+
+    const calcularTotal = () => {
+        return selectedProductos.reduce((total, p) => total + (p.precio_venta * p.cantidad), 0);
+    };
+
+    // Handlers Cuentas (CORREGIDO)
+    const handlePagarCuenta = async (cuentaId) => {
+        try {
+        setUpdating(cuentaId);
+        const response = await fetch(`${apiURL}/cuentas/${cuentaId}/pagar`, {
+            method: 'PATCH'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            await Promise.all([
+            fetchCuentas(page),
+            fetchMesas()
+            ]);
+        }
+        } catch (error) {
+        console.error('Error pagar:', error);
+        } finally {
+        setUpdating(null);
+        }
+    };
+
+    const handleVerDetalle = async (cuentaId) => {
+        try {
+        setLoadingDetail(cuentaId);
+        const response = await fetch(`${apiURL}/cuentas/${cuentaId}`);
+        const data = await response.json();
+        if (data.success) {
+            handleAbrirDetalle(data.data);
+        }
+        } catch (error) {
+        console.error('Error detalle:', error);
+        } finally {
+        setLoadingDetail(null);
+        }
+    };
+
+    // ✅ handleAbrirDetalle
+    const handleAbrirDetalle = useCallback(async (cuenta) => {
+        // Inicializar estados
+        setSelectedCuenta(cuenta);
+        setEditForm({ cliente: cuenta.cliente, tipo_cuenta: cuenta.tipo_cuenta, mesa_id: cuenta.mesa_id || '' });
+        setDetalleProductos(cuenta.detalles?.map(d => ({ 
+            ...d, 
+            cantidad: d.cantidad_vendida || d.cantidad || 1 
+        })) || []);
+        setEditProductos([]);
+        
+        // ✅ CARGAR PRODUCTOS ANTES de abrir modal
+        setProductosPage(1);
+        await fetchProductos(1);
+        
+        setShowDetailModal(true);
+    }, [fetchProductos]);
+
+    const handleCrearCuenta = async (e) => {
+        e.preventDefault();
+        if (!createForm.cliente || selectedProductos.length === 0) return;
+
+        console.log(selectedProductos)
+        
+        try {
+            setCreatingCuenta(true);
+        const response = await fetch(`${apiURL}/cuentas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+            ...createForm,
+            total: calcularTotal(),
+            detalles: selectedProductos.map(p => ({
+                producto_id: p.id,
+                cantidad_vendida: p.cantidad,
+                precio_compra_actual: p.precio_compra,
+                precio_venta: p.precio_venta || p.precio_compra * 1.3
+            }))
+            })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            setShowCreateModal(false);
+            setSelectedProductos([]);
+            setCreateForm({ cliente: '', tipo_cuenta: 'individual', mesa_id: null });
+            setProductosPage(1);
+            fetchCuentas(page);
+            fetchMesas();
+        } else {
+            console.error('Error API:', data.error);
+            alert('Error creando cuenta: ' + (data.error || 'Inténtalo de nuevo'));
+        }
+        } catch (error) {
+        console.error('Error creando cuenta:', error);
+        alert('Error de conexión. Inténtalo de nuevo.');
+        } finally {
+            setCreatingCuenta(false);
+        }
+    };
+
+    const handleCerrarModal = () => {
+        setShowCreateModal(false);
+        setSelectedProductos([]);
+        setCreateForm({ cliente: '', tipo_cuenta: 'individual', mesa_id: null });
+        setProductosPage(1);
+    };
+
+    const handleCerrarDetalle = () => {
+        setShowDetailModal(false);
+        setSelectedCuenta(null);
+        setEditForm({ cliente: '', mesa_id: '' });
+        setDetalleProductos([]);
+        setEditProductos([]);
+    };
+
+    const formatDinero = (numero) => {
+        return Number(numero ?? 0).toLocaleString('es-SV', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+        });
+    };
+
+    // Effects
+    useEffect(() => {
+        fetchCuentas(page);
+        fetchMesas();
+    }, [page]);
+
+    useEffect(() => {
+        if (showCreateModal) {
+        fetchProductos(productosPage);
+        }
+    }, [showCreateModal, productosPage]);
+
+        // ✅ useEffect
+    useEffect(() => {
+        if (showDetailModal && productos.length === 0) {
+            fetchProductos(1);
+        }
+    }, [showDetailModal, productos.length]);
+
+    if (loading && cuentas.length === 0) {
+        return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 sm:py-20">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-blue-200/50 border-t-blue-600 rounded-full animate-spin mb-6" />
+            <p className="text-lg sm:text-xl font-medium text-gray-700 text-center">Cargando cuentas...</p>
+        </div>
+        );
+    }
+
+    return (
+        <>      
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white py-6 px-4 sm:py-8 sm:px-6 lg:py-12">
+            <div className="max-w-7xl mx-auto">
+            {/* HEADER */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 lg:mb-12 gap-4">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">💰 Cuentas</h1>
+                <button
+                onClick={() => {
+                    setShowCreateModal(true);
+                    setProductosPage(1);
+                }}
+                    className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-6 sm:py-4 sm:px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 w-full sm:w-auto text-sm sm:text-base"
+                >
+                ➕ Nueva Cuenta
+                </button>
+            </div>
+
+            {/* PAGINACIÓN CUENTAS */}
+            {pagination.totalPages > 1 && (
+                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-md lg:shadow-lg mb-8 lg:mb-12 flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4">
+                <button 
+                    className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page <= 1}
+                >
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+
+                <div className="hidden sm:flex gap-1 lg:gap-2 justify-center min-w-[120px] lg:min-w-[160px]">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                    const startPage = Math.max(1, page - 2);
+                    const pageNum = Math.min(startPage + i, pagination.totalPages);
+                    return (
+                        <button
+                        key={pageNum}
+                        className={`w-10 h-10 sm:w-11 sm:h-11 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl lg:rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-sm lg:shadow-md flex items-center justify-center text-sm lg:text-base flex-shrink-0 ${
+                            pageNum === page 
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700 border border-gray-200 hover:border-blue-200'
+                        }`}
+                        onClick={() => setPage(pageNum)}
+                        >
+                        {pageNum}
+                        </button>
+                    );
+                    })}
+                </div>
+
+                <button 
+                    className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
+                    onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
+                    disabled={page >= pagination.totalPages}
+                >
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+
+                <div className="hidden sm:block text-gray-700 font-semibold bg-gray-100 px-4 py-2 lg:px-6 lg:py-3 rounded-xl lg:rounded-2xl border border-gray-200 text-sm lg:text-base whitespace-nowrap flex-shrink-0">
+                    Pg. <span className="text-blue-600 font-bold">{page}</span> de <span className="text-purple-600 font-bold">{pagination.totalPages}</span>
+                </div>
+                </div>
+            )}
+
+            {/* GRID CUENTAS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {cuentas.map(cuenta => (
+                <div key={cuenta.id} className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:-translate-y-1">
+                    <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-xl font-bold text-gray-900 line-clamp-1">Cuenta #{cuenta.id}</h3>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        cuenta.estado === 'pagado' 
+                        ? 'bg-emerald-100 text-emerald-800' 
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                        {cuenta.estado === 'pagado' ? '✅ Pagada' : '⏳ Pendiente'}
+                    </span>
+                    </div>
+                    
+                    <div className="space-y-2 mb-6">
+                    <p className="text-sm text-gray-600"><strong>Cliente:</strong> {cuenta.cliente}</p>
+                    {cuenta.mesa_id && (
+                        <p className="text-sm text-gray-600">
+                        <strong>🪑 Mesa:</strong> {cuenta.numero_mesa}
+                        </p>
+                    )}
+                    </div>
+
+                    <div className="text-2xl lg:text-3xl font-bold text-emerald-600 mb-6 bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-xl">
+                    ${formatDinero(cuenta.total)}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    {cuenta.estado === 'pendiente' && (
+                        <button
+                        onClick={() => handlePagarCuenta(cuenta.id)}
+                        disabled={updating === cuenta.id}
+                        className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                        {updating === cuenta.id ? (
+                            <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                            </svg>
+                            Pagando...
+                            </>
+                        ) : (
+                            '💰 Marcar Pagado'
+                        )}
+                        </button>
+                    )}
+                    <button 
+                        onClick={() => handleVerDetalle(cuenta.id)}
+                        disabled={loadingDetail === cuenta.id}
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        👁️ Ver Detalle
+                    </button>
+                    </div>
+                </div>
+                ))}
+            </div>
+
+            {cuentas.length === 0 && !loading && (
+                <div className="text-center py-20">
+                <div className="text-6xl mb-4">💸</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">No hay cuentas</h2>
+                <p className="text-gray-600 mb-6">Crea la primera cuenta para empezar</p>
+                <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300"
+                >
+                    ➕ Nueva Cuenta
+                </button>
+                </div>
+            )}
+            </div>
+        </div>
+
+        {/* MODAL NUEVA CUENTA */}
+        {showCreateModal && (
+            <>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] animate-in fade-in-0 zoom-in-95 duration-200" onClick={handleCerrarModal} />
+            <div className="fixed inset-0 z-[60] p-4 sm:p-6 flex items-center justify-center">
+                <div className="w-full max-w-6xl max-h-[95vh] flex flex-col bg-white rounded-3xl sm:rounded-[2rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+                {/* HEADER FIJO */}
+                <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-green-50 flex-shrink-0">
+                    <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Nueva Cuenta</h2>
+                        <p className="text-lg text-gray-600">
+                        Total: <span className="text-2xl font-bold text-emerald-600">${formatDinero(calcularTotal())}</span>
+                        {selectedProductos.length > 0 && ` (${selectedProductos.length} productos)`}
+                        </p>
+                    </div>
+                    <button onClick={handleCerrarModal} className="p-2 rounded-2xl hover:bg-gray-200 transition-all">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    </div>
+
+                    {/* FORM CABECERA */}
+                    <form className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Cliente *</label>
+                        <input
+                        className="w-full p-4 text-base border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                        value={createForm.cliente}
+                        onChange={(e) => setCreateForm({ ...createForm, cliente: e.target.value })}
+                        required
+                        placeholder="Nombre del cliente"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo Cuenta</label>
+                        <select
+                        className="w-full p-4 text-base border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-lg leading-8"
+                        value={createForm.tipo_cuenta}
+                        onChange={handleTipoChange}
+                        >
+                        <option className="py-5 px-4 text-xl leading-10 block font-medium bg-white hover:bg-gray-50" value="individual">
+                            👤 Individual
+                        </option>
+                        <option className="py-5 px-4 text-xl leading-10 block font-medium bg-white hover:bg-gray-50" value="mesa">
+                            🪑 Mesa
+                        </option>
+                        </select>
+                    </div>
+                    <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-2 self-end">
+                        <span className="text-sm text-gray-500 text-right">Productos seleccionados</span>
+                        <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-emerald-600">
+                        {selectedProductos.length}
+                        </div>
+                    </div>
+                    </form>
+                </div>
+
+                {/* CONTENIDO SCROLLABLE */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                    {/* MESAS */}
+                    {createForm.tipo_cuenta === 'mesa' && (
+                    <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
+                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                        {mesas.map(mesa => (
+                            <button
+                            key={mesa.id}
+                            type="button"
+                            onClick={() => handleMesaSelect(mesa.id)}
+                            className={`group p-4 sm:p-5 rounded-2xl transition-all duration-200 hover:scale-105 shadow-lg border-4 h-full flex flex-col items-center justify-center gap-3 ${
+                                createForm.mesa_id === mesa.id
+                                ? 'ring-4 ring-blue-500 bg-blue-50 border-blue-400 shadow-2xl shadow-blue-200/50'
+                                : mesa.estado === 'disponible'
+                                ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200 hover:shadow-xl hover:shadow-emerald-200/50'
+                                : 'bg-orange-100 border-orange-400 hover:bg-orange-200 hover:shadow-xl hover:shadow-orange-200/50'
+                            }`}
+                            >
+                            <div className="text-2xl font-bold">Mesa {mesa.numero_mesa}</div>
+                            <span className={`px-3 py-2 rounded-xl text-xs font-bold ${
+                                mesa.estado === 'disponible' 
+                                ? 'bg-emerald-200 text-emerald-800 shadow-emerald-200/50' 
+                                : 'bg-orange-200 text-orange-800 shadow-orange-200/50'
+                            }`}>
+                                {mesa.estado === 'disponible' ? '✅ LIBRE' : '🪑 OCUPADA'}
+                            </span>
+                            </button>
+                        ))}
+                        </div>
+                    </div>
+                    )}
+
+                    {/* PRODUCTOS SELECCIONADOS */}
+                    {selectedProductos.length > 0 && (
+                    <div className="p-6 sm:p-8 border-b border-gray-100 bg-gray-50">
+                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        🛒 Productos Seleccionados ({selectedProductos.length})
+                        </h3>
+                        <div className="space-y-4">
+                        {selectedProductos.map(producto => (
+                            <div key={producto.id} className="bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                            <div className="flex-1 mb-4 sm:mb-0">
+                                <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
+                                <p className="text-sm text-gray-600">{producto.presentacion}</p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                                <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                                <button
+                                    onClick={() => handleDisminuirCantidad(producto.id)}
+                                    className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
+                                >
+                                    -
+                                </button>
+                                <input
+                                    type="text"
+                                    value={producto.cantidad?.toString() || '1'}
+                                    onChange={(e) => handleCantidadChange(producto.id, parseFloat(e.target.value) || 1)}
+                                    className="w-20 p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-center font-bold text-base bg-white shadow-sm"
+                                />
+                                <button
+                                    onClick={() => handleAumentarCantidad(producto.id)}
+                                    className="w-12 h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                >
+                                    +
+                                </button>
+                                </div>
+                                <div className="flex items-end sm:items-center gap-3">
+                                <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right sm:text-left">
+                                    ${formatDinero((producto.precio_venta || producto.precioventa) * (producto.cantidad || 1))}
+                                </span>
+                                <button
+                                    onClick={() => handleBorrarProducto(producto.id)}
+                                    className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                >
+                                    🗑️
+                                </button>
+                                </div>
+                            </div>
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+                    )}
+
+                    {/* LISTA PRODUCTOS */}
+                    <div className="p-6 sm:p-8">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
+                        <h3 className="text-xl font-bold flex items-center gap-2">
+                        🛍️ Seleccionar Productos
+                        <span className="text-sm text-gray-500">Pg. {productosPage} de {productosPagination.totalPages || 1}</span>
+                        </h3>
+                        <button
+                            type="button"
+                            onClick={handleCrearCuenta}
+                            disabled={!createForm.cliente || selectedProductos.length === 0 || creatingCuenta}
+                            className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto order-last sm:order-none flex items-center justify-center gap-2 disabled:shadow-none"
+                        >
+                            {creatingCuenta ? (
+                                <>
+                                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                    </svg>
+                                    Creando...
+                                </>
+                            ) : (
+                                <>
+                                    Crear Cuenta 
+                                    <span className="text-lg font-bold">{selectedProductos.length}</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* PAGINACIÓN PRODUCTOS */}
+                    {productosPagination.totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 pt-8 pb-6 mb-6">
+                        <button
+                            onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
+                            disabled={productosPage === 1}
+                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                        >
+                            ‹
+                        </button>
+                        <button
+                            onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
+                            disabled={productosPage === (productosPagination.totalPages || 1)}
+                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                        >
+                            ›
+                        </button>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {productos.map(producto => (
+                        <button
+                            key={producto.id}
+                            onClick={() => handleAgregarProducto(producto)}
+                            disabled={producto.cantidaddisponible === 0}
+                            className="group p-4 sm:p-5 border-2 border-gray-200 rounded-2xl hover:border-emerald-400 hover:shadow-2xl hover:shadow-emerald-200/50 transition-all duration-300 hover:scale-105 bg-white disabled:opacity-50 disabled:cursor-not-allowed h-full flex flex-col items-start gap-2 shadow-sm hover:shadow-lg"
+                        >
+                            <div className="font-bold text-sm sm:text-base line-clamp-2 group-hover:text-emerald-700 leading-tight h-12">
+                            {producto.descripcion}
+                            </div>
+                            <div className="text-xs text-gray-600">{producto.presentacion}</div>
+                            <div className="font-bold text-emerald-600 text-lg sm:text-xl w-full text-left">
+                            ${formatDinero(producto.precio_venta || producto.precio_venta)}
+                            </div>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                            Stock <span className="font-semibold">{producto.cantidad_disponible}</span>
+                            </div>
+                        </button>
+                        ))}
+                    </div>
+                    {/* PAGINACIÓN PRODUCTOS */}
+                    {productosPagination.totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 pt-8 pb-6 mb-6">
+                        <button
+                            onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
+                            disabled={productosPage === 1}
+                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                        >
+                            ‹
+                        </button>
+                        <button
+                            onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
+                            disabled={productosPage === (productosPagination.totalPages || 1)}
+                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                        >
+                            ›
+                        </button>
+                        </div>
+                    )}
+                    </div>
+                </div>
+                </div>
+            </div>
+            </>
+        )}
+
+        {/* ✅ MODAL DETALLE  */}
+        {showDetailModal && selectedCuenta && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] animate-in fade-in-0 zoom-in-95 duration-200">
+            <div className="fixed inset-0 z-[70] p-4 sm:p-6 flex items-center justify-center">
+                <div className="w-full max-w-6xl max-h-[95vh] flex flex-col bg-white rounded-3xl sm:rounded-[2rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+                {/* HEADER - EDITABLE */}
+                <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
+                    <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
+                        Editar Cuenta #{selectedCuenta.id}
+                        </h2>
+                        <p className="text-lg text-gray-600">
+                        Total <span className="text-2xl font-bold text-emerald-600">
+                            ${formatDinero([...detalleProductos, ...editProductos].reduce((total, p) => total + (p.precio_venta || p.precioventa || 0) * (p.cantidad || 1), 0))}
+                        </span>
+                        ({detalleProductos.length + editProductos.length} productos)
+                        </p>
+                    </div>
+                    <button onClick={handleCerrarDetalle} className="p-2 rounded-2xl hover:bg-gray-200 transition-all">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    </div>
+
+                    {/* FORM CABECERA EDITABLE*/}
+                    <form className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Cliente *</label>
+                        <input
+                        className="w-full p-4 text-base border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        value={editForm.cliente}
+                        onChange={(e) => setEditForm({ ...editForm, cliente: e.target.value })}
+                        required
+                        placeholder="Nombre del cliente"
+                        />
+                    </div>
+                    
+                    {/* ✅ TIPO CUENTA */}
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo Cuenta</label>
+                        <select
+                        className="w-full p-4 text-base border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-lg leading-8"
+                        value={editForm.tipo_cuenta || 'individual'}
+                        onChange={(e) => {
+                            setEditForm({ 
+                            ...editForm, 
+                            tipo_cuenta: e.target.value,
+                            mesa_id: e.target.value === 'individual' ? null : editForm.mesa_id
+                            });
+                        }}
+                        >
+                        <option className="py-5 px-4 text-xl leading-10 block font-medium bg-white hover:bg-gray-50" value="individual">
+                            👤 Individual
+                        </option>
+                        <option className="py-5 px-4 text-xl leading-10 block font-medium bg-white hover:bg-gray-50" value="mesa">
+                            🪑 Mesa
+                        </option>
+                        </select>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-2 self-end">
+                        <span className="text-sm text-gray-500 text-right">Productos totales</span>
+                        <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-emerald-600">
+                        {detalleProductos.length + editProductos.length}
+                        </div>
+                    </div>
+                    </form>
+                </div>
+
+                {/* CONTENIDO SCROLLABLE */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                    {/* ✅ MESAS*/}
+                    {editForm.tipo_cuenta === 'mesa' && (
+                    <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
+                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                        {mesas.map(mesa => (
+                            <button
+                            key={mesa.id}
+                            type="button"
+                            onClick={() => setEditForm({ ...editForm, mesa_id: mesa.id })}
+                            className={`group p-4 sm:p-5 rounded-2xl transition-all duration-200 hover:scale-105 shadow-lg border-4 h-full flex flex-col items-center justify-center gap-3 ${
+                                editForm.mesa_id === mesa.id
+                                ? 'ring-4 ring-blue-500 bg-blue-50 border-blue-400 shadow-2xl shadow-blue-200/50'
+                                : mesa.estado === 'disponible'
+                                ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200 hover:shadow-xl hover:shadow-emerald-200/50'
+                                : 'bg-orange-100 border-orange-400 hover:bg-orange-200 hover:shadow-xl hover:shadow-orange-200/50'
+                            }`}
+                            >
+                            <div className="text-2xl font-bold">Mesa {mesa.numero_mesa}</div>
+                            <span className={`px-3 py-2 rounded-xl text-xs font-bold ${
+                                mesa.estado === 'disponible' 
+                                ? 'bg-emerald-200 text-emerald-800 shadow-emerald-200/50' 
+                                : 'bg-orange-200 text-orange-800 shadow-orange-200/50'
+                            }`}>
+                                {mesa.estado === 'disponible' ? '✅ LIBRE' : '🪑 OCUPADA'}
+                            </span>
+                            </button>
+                        ))}
+                        </div>
+                    </div>
+                    )}
+                    {/* PRODUCTOS ORIGINALES + NUEVOS */}
+                    {(detalleProductos.length > 0 || editProductos.length > 0) && (
+                    <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
+                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        🛒 Productos ({detalleProductos.length + editProductos.length})
+                        </h3>
+                        <div className="space-y-4">
+                        {/* ORIGINALES */}
+                        {detalleProductos.map(producto => (
+                            <div key={producto.id} className="bg-white/80 p-5 rounded-2xl border-l-4 border-orange-400 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                            <div className="flex-1 mb-4 sm:mb-0">
+                                <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
+                                <p className="font-bold text-sm text-gray-700 line-clamp-1">{producto.presentacion}</p>
+                                <p className="text-sm text-gray-600">Original</p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                                <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                                <button
+                                    onClick={() => handleDisminuirCantidadDetalle(producto.id)}
+                                    className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
+                                >
+                                    -
+                                </button>
+                                <span className="w-20 p-2 border border-gray-300 rounded-xl text-center font-bold text-base bg-white shadow-sm">
+                                    {producto.cantidad || 1}
+                                </span>
+                                <button
+                                    onClick={() => handleAumentarCantidadDetalle(producto.id)}
+                                    className="w-12 h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                >
+                                    +
+                                </button>
+                                </div>
+                                <div className="flex items-end sm:items-center gap-3">
+                                <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right sm:text-left">
+                                    ${formatDinero((producto.precio_venta || 0) * (producto.cantidad || 1))}
+                                </span>
+                                <button
+                                    onClick={() => handleEliminarProductoDetalle(producto.id)}
+                                    className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                >
+                                    🗑️
+                                </button>
+                                </div>
+                            </div>
+                            </div>
+                        ))}
+                        {/* NUEVOS */}
+                        {editProductos.map(producto => (
+                            <div key={producto.id} className="bg-white/80 p-5 rounded-2xl border-l-4 border-emerald-400 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                            <div className="flex-1 mb-4 sm:mb-0">
+                                <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
+                                <p className="font-bold text-sm text-gray-700 line-clamp-1">{producto.presentacion}</p>
+                                <p className="text-sm text-gray-600 text-emerald-700 font-medium">Nuevo</p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                                <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                                <button
+                                    onClick={() => handleDisminuirCantidadDetalle(producto.id)}
+                                    className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
+                                >
+                                    -
+                                </button>
+                                <span className="w-20 p-2 border border-gray-300 rounded-xl text-center font-bold text-base bg-white shadow-sm">
+                                    {producto.cantidad || 1}
+                                </span>
+                                <button
+                                    onClick={() => handleAumentarCantidadDetalle(producto.id)}
+                                    className="w-12 h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                >
+                                    +
+                                </button>
+                                </div>
+                                <div className="flex items-end sm:items-center gap-3">
+                                <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right sm:text-left">
+                                    ${formatDinero((producto.precioventa || producto.precio_venta || 0) * (producto.cantidad || 1))}
+                                </span>
+                                <button
+                                    onClick={() => handleEliminarProductoDetalle(producto.id)}
+                                    className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                >
+                                    🗑️
+                                </button>
+                                </div>
+                            </div>
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+                    )}
+
+                    {/* AGREGAR PRODUCTOS NUEVOS */}
+                    <div className="p-6 sm:p-8">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
+                        <h3 className="text-xl font-bold flex items-center gap-2">
+                        ➕ Agregar Más Productos
+                        <span className="text-sm text-gray-500">Pg. {productosPage} de {productosPagination.totalPages || 1}</span>
+                        </h3>
+                        <button
+                        type="button"
+                        onClick={handleGuardarDetalle}
+                        disabled={!editForm.cliente || creatingCuentaDetalle}
+                        className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto order-last sm:order-none flex items-center justify-center gap-2"
+                        >
+                        {creatingCuentaDetalle ? (
+                                <>
+                                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                    </svg>
+                                    Guardando Cambios...
+                                </>
+                            ) : (
+                                <>
+                                    Guardar Cambios 
+                                </>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* PAGINACIÓN PRODUCTOS */}
+                    {productosPagination.totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 pt-8 pb-6 mb-6">
+                        <button
+                            onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
+                            disabled={productosPage === 1}
+                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                        >
+                            ‹
+                        </button>
+                        <button
+                            onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
+                            disabled={productosPage === (productosPagination.totalPages || 1)}
+                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                        >
+                            ›
+                        </button>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {productos.map(producto => (
+                        <button
+                            key={producto.id}
+                            onClick={() => handleAgregarProductoDetalle(producto)}
+                            disabled={detalleProductos.find(p => p.id === producto.id) || editProductos.find(p => p.id === producto.id)}
+                            className="group p-4 sm:p-5 border-2 border-gray-200 rounded-2xl hover:border-blue-400 hover:shadow-2xl hover:shadow-blue-200/50 transition-all duration-300 hover:scale-105 bg-white disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 h-full flex flex-col items-start gap-2 shadow-sm hover:shadow-lg"
+                        >
+                            <div className="font-bold text-sm sm:text-base line-clamp-2 group-hover:text-blue-700 leading-tight h-12">
+                            {producto.descripcion}
+                            </div>
+                            <div className="text-xs text-gray-600">{producto.presentacion}</div>
+                            <div className="font-bold text-emerald-600 text-lg sm:text-xl w-full text-left">
+                            ${formatDinero(producto.precio_venta)}
+                            </div>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                            Stock <span className="font-semibold">{producto.cantidad_disponible}</span>
+                            </div>
+                        </button>
+                        ))}
+                    </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+            </div>
+        )}
+        </>
+    );
+};
+
+export default Cuentas;
