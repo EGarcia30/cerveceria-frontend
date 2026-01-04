@@ -30,8 +30,8 @@ function App() {
                   onClick={() => setIsMenuOpen(false)}
                 >
                   <span>🛒</span>
-                  <span className="hidden sm:inline">InventoryPro</span>
-                  <span className="sm:hidden">InvPro</span>
+                  <span className="hidden sm:inline">Cerveceria GJ</span>
+                  <span className="sm:hidden">GJ</span>
                 </NavLink>
               </div>
               
