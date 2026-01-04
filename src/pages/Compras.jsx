@@ -38,7 +38,7 @@ const Compras = () => {
     const fetchCompras = async (currentPage = 1) => {
         try {
             setLoading(true);
-            const response = await fetch(`${apiUrl}/compras?page=${currentPage}&limit=10`);
+            const response = await fetch(`${apiURL}/compras?page=${currentPage}&limit=10`);
             const data = await response.json();
             if (data.success) {
                 setCompras(data.data);
