@@ -10,6 +10,7 @@ const Cuentas = () => {
     const [productosPagination, setProductosPagination] = useState({});
     const [page, setPage] = useState(1);
     const [productosPage, setProductosPage] = useState(1);
+    const [mesasPage, setMesasPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(null);
 
@@ -31,6 +32,15 @@ const Cuentas = () => {
     const [detalleProductos, setDetalleProductos] = useState([]); // Productos originales editables
     const [editProductos, setEditProductos] = useState([]); // Productos nuevos
     const [creatingCuentaDetalle, setCreatingCuentaDetalle] = useState(false);
+
+    // Promociones
+    const [promocionesPorProducto, setPromocionesPorProducto] = useState({});
+    const [promocionesPorProductoDetalle, setPromocionesPorProductoDetalle] = useState({});
+
+    //mesas
+    const [mesasTotalPages, setMesasTotalPages] = useState(1);
+
+
 
     // ✅ HANDLERS DETALLE SIMPLIFICADOS
     const handleAumentarCantidadDetalle = (id) => {
@@ -97,6 +107,7 @@ const Cuentas = () => {
                     cantidad_vendida: p.cantidad,
                     precio_compra_actual: p.precio_compra_actual || p.precio_compra,
                     precio_venta: p.precio_venta || p.precioventa,
+                    promocion_id: p.promocion_activa?.id || null,
                     descripcion: p.descripcion
                 }))
                 })
@@ -148,11 +159,15 @@ const Cuentas = () => {
         }
     };
 
-    const fetchMesas = async () => {
+    const fetchMesas = async (currentPage = 1) => {
         try {
-        const response = await fetch(`${apiURL}/mesas`);
+        const response = await fetch(`${apiURL}/mesas?page=${currentPage}&limit=10`);
         const data = await response.json();
-        if (data.success) setMesas(data.data);
+        
+        if (data.success){
+            setMesas(data.data)
+            setMesasTotalPages(data.pagination.totalPages)
+        }
         } catch (error) {
         console.error('Error cargando mesas:', error);
         }
@@ -161,6 +176,7 @@ const Cuentas = () => {
     // Handlers Modal Nueva Cuenta (TODO IGUAL)
     const handleTipoChange = (e) => {
         setCreateForm({ ...createForm, tipo_cuenta: e.target.value, mesa_id: null });
+        setMesasPage(1)
     };
 
     const handleMesaSelect = (mesaId) => {
@@ -213,13 +229,55 @@ const Cuentas = () => {
     const handleAgregarProducto = (producto) => {
         const existe = selectedProductos.find(p => p.id === producto.id);
         if (existe) {
-        setSelectedProductos(selectedProductos.map(p => 
+            setSelectedProductos(selectedProductos.map(p =>
             p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p
-        ));
+            ));
         } else {
-        setSelectedProductos([...selectedProductos, { ...producto, cantidad: 1 }]);
+            setSelectedProductos([
+            ...selectedProductos,
+            { 
+                ...producto, 
+                cantidad: 1,
+                precioventa_original: producto.precio_venta, // guardar precio normal
+                promocion_activa: null                       // sin promo al inicio
+            }
+            ]);
         }
     };
+
+    const handlePromocionChange = (productoId, promocion) => {
+        setSelectedProductos(prev =>
+            prev.map(p => {
+            if (p.id !== productoId) return p;
+
+            const precioBase = p.precioventa_original ?? p.precio_venta;
+            return {
+                ...p,
+                promocion_activa: promocion,
+                precio_venta: promocion ? promocion.nuevo_precio_venta : precioBase
+            };
+            })
+        );
+    };
+
+    const handlePromocionChangeDetalle = (cuentaDetalleId, promocion) => {
+        // Actualizar productos originales
+        setDetalleProductos(prev =>
+            prev.map(p => {
+                //p es modelo de cuenta_detalle no producto
+                if (p.id !== cuentaDetalleId) return p;
+                
+                const precioBase = p.precioventa_original;
+                return {
+                    ...p,
+                    promocion_activa: promocion,
+                    precio_venta: promocion ? promocion.nuevo_precio_venta : precioBase
+                };
+            })
+        );
+
+    };
+
 
     const handleBorrarProducto = (productoId) => {
         setSelectedProductos(selectedProductos.filter(p => p.id !== productoId));
@@ -253,16 +311,16 @@ const Cuentas = () => {
 
     const handleVerDetalle = async (cuentaId) => {
         try {
-        setLoadingDetail(cuentaId);
-        const response = await fetch(`${apiURL}/cuentas/${cuentaId}`);
-        const data = await response.json();
-        if (data.success) {
-            handleAbrirDetalle(data.data);
-        }
+            setLoadingDetail(cuentaId);
+            const response = await fetch(`${apiURL}/cuentas/${cuentaId}`);
+            const data = await response.json();
+            if (data.success) {
+                handleAbrirDetalle(data.data);
+            }
         } catch (error) {
-        console.error('Error detalle:', error);
+            console.error('Error detalle:', error);
         } finally {
-        setLoadingDetail(null);
+            setLoadingDetail(null);
         }
     };
 
@@ -287,8 +345,6 @@ const Cuentas = () => {
     const handleCrearCuenta = async (e) => {
         e.preventDefault();
         if (!createForm.cliente || selectedProductos.length === 0) return;
-
-        console.log(selectedProductos)
         
         try {
             setCreatingCuenta(true);
@@ -302,7 +358,8 @@ const Cuentas = () => {
                 producto_id: p.id,
                 cantidad_vendida: p.cantidad,
                 precio_compra_actual: p.precio_compra,
-                precio_venta: p.precio_venta || p.precio_compra * 1.3
+                precio_venta: p.precio_venta || p.precio_compra * 1.3,
+                promocion_id: p.promocion_activa?.id || null
             }))
             })
         });
@@ -321,8 +378,8 @@ const Cuentas = () => {
             alert('Error creando cuenta: ' + (data.error || 'Inténtalo de nuevo'));
         }
         } catch (error) {
-        console.error('Error creando cuenta:', error);
-        alert('Error de conexión. Inténtalo de nuevo.');
+            console.error('Error creando cuenta:', error);
+            alert('Error de conexión. Inténtalo de nuevo.');
         } finally {
             setCreatingCuenta(false);
         }
@@ -343,6 +400,42 @@ const Cuentas = () => {
         setEditProductos([]);
     };
 
+    // ✅ 1. PROMOCIONES - SOLO editProductos
+    const handlePromocionChangeEdit = (productoId, promocion) => {
+        setEditProductos(prev =>
+            prev.map(p =>
+                p.id === productoId
+                    ? { ...p, promocion_activa: promocion, precio_venta: promocion?.nuevo_precio_venta || p.precio_venta_original}
+                    : p
+            
+            )
+        );
+    };
+
+    // ✅ 2. CANTIDAD - SOLO editProductos
+    const handleAumentarCantidadEdit = (productoId) => {
+        setEditProductos(prev =>
+            prev.map(p =>
+                p.id === productoId ? { ...p, cantidad: (p.cantidad || 1) + 1 } : p
+            )
+        );
+    };
+
+    const handleDisminuirCantidadEdit = (productoId) => {
+        setEditProductos(prev =>
+            prev.map(p =>
+                p.id === productoId && (p.cantidad || 1) > 1
+                    ? { ...p, cantidad: (p.cantidad || 1) - 1 }
+                    : p
+            )
+        );
+    };
+
+    // ✅ 3. ELIMINAR - SOLO editProductos
+    const handleEliminarProductoEdit = (productoId) => {
+        setEditProductos(prev => prev.filter(p => p.id !== productoId));
+    };
+
     const formatDinero = (numero) => {
         return Number(numero ?? 0).toLocaleString('es-SV', { 
         minimumFractionDigits: 2, 
@@ -357,17 +450,67 @@ const Cuentas = () => {
     }, [page]);
 
     useEffect(() => {
+        if (showDetailModal) {
+            fetchProductos(productosPage);
+        }
+    }, [showDetailModal, productosPage]);
+
+    useEffect(() => {
         if (showCreateModal) {
         fetchProductos(productosPage);
         }
     }, [showCreateModal, productosPage]);
 
-        // ✅ useEffect
     useEffect(() => {
-        if (showDetailModal && productos.length === 0) {
-            fetchProductos(1);
+        if (selectedProductos.length === 0) return;
+
+        const cargarPromociones = async () => {
+            try {
+            const ids = selectedProductos.map(p => p.id);
+            const response = await fetch(`${apiURL}/promociones?ids=${ids.join(',')}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const map = {};
+                data.data.forEach(promo => {
+                if (!map[promo.producto_id]) map[promo.producto_id] = [];
+                map[promo.producto_id].push(promo);
+                });
+                setPromocionesPorProducto(map);
+            }
+            } catch (error) {
+                console.error('Error cargando promociones:', error);
+            }
+        };
+
+        cargarPromociones();
+    }, [selectedProductos]);
+
+    // ✅useEffect de promociones detalle:
+    useEffect(() => {
+        if (showDetailModal) {
+            // ✅ Endpoint nuevo: /api/promociones/all
+            fetch(`${apiURL}/promociones/all`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        const map = {};
+                        data.data.forEach(promo => {
+                            const prodId = String(promo.producto_id);
+                            if (!map[prodId]) map[prodId] = [];
+                            map[prodId].push(promo);
+                        });
+                        setPromocionesPorProductoDetalle(map);
+                    }
+                })
+                .catch(err => console.error('❌ Error:', err));
         }
-    }, [showDetailModal, productos.length]);
+    }, [showDetailModal]);
+
+    useEffect(() => {
+        fetchMesas(mesasPage);
+    }, [mesasPage])
+
 
     if (loading && cuentas.length === 0) {
         return (
@@ -527,161 +670,331 @@ const Cuentas = () => {
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] animate-in fade-in-0 zoom-in-95 duration-200" onClick={handleCerrarModal} />
             <div className="fixed inset-0 z-[60] p-4 sm:p-6 flex items-center justify-center">
                 <div className="w-full max-w-6xl max-h-[95vh] flex flex-col bg-white rounded-3xl sm:rounded-[2rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
-                {/* HEADER FIJO */}
-                <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-green-50 flex-shrink-0">
-                    <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Nueva Cuenta</h2>
-                        <p className="text-lg text-gray-600">
-                        Total: <span className="text-2xl font-bold text-emerald-600">${formatDinero(calcularTotal())}</span>
-                        {selectedProductos.length > 0 && ` (${selectedProductos.length} productos)`}
-                        </p>
-                    </div>
-                    <button onClick={handleCerrarModal} className="p-2 rounded-2xl hover:bg-gray-200 transition-all">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                    </div>
-
-                    {/* FORM CABECERA */}
-                    <form className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Cliente *</label>
-                        <input
-                        className="w-full p-4 text-base border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
-                        value={createForm.cliente}
-                        onChange={(e) => setCreateForm({ ...createForm, cliente: e.target.value })}
-                        required
-                        placeholder="Nombre del cliente"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo Cuenta</label>
-                        <select
-                        className="w-full p-4 text-base border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-lg leading-8"
-                        value={createForm.tipo_cuenta}
-                        onChange={handleTipoChange}
-                        >
-                        <option className="py-5 px-4 text-xl leading-10 block font-medium bg-white hover:bg-gray-50" value="individual">
-                            👤 Individual
-                        </option>
-                        <option className="py-5 px-4 text-xl leading-10 block font-medium bg-white hover:bg-gray-50" value="mesa">
-                            🪑 Mesa
-                        </option>
-                        </select>
-                    </div>
-                    <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-2 self-end">
-                        <span className="text-sm text-gray-500 text-right">Productos seleccionados</span>
-                        <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-emerald-600">
-                        {selectedProductos.length}
-                        </div>
-                    </div>
-                    </form>
-                </div>
-
-                {/* CONTENIDO SCROLLABLE */}
-                <div className="flex-1 overflow-y-auto min-h-0">
-                    {/* MESAS */}
-                    {createForm.tipo_cuenta === 'mesa' && (
-                    <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                        {mesas.map(mesa => (
-                            <button
-                            key={mesa.id}
-                            type="button"
-                            onClick={() => handleMesaSelect(mesa.id)}
-                            className={`group p-4 sm:p-5 rounded-2xl transition-all duration-200 hover:scale-105 shadow-lg border-4 h-full flex flex-col items-center justify-center gap-3 ${
-                                createForm.mesa_id === mesa.id
-                                ? 'ring-4 ring-blue-500 bg-blue-50 border-blue-400 shadow-2xl shadow-blue-200/50'
-                                : mesa.estado === 'disponible'
-                                ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200 hover:shadow-xl hover:shadow-emerald-200/50'
-                                : 'bg-orange-100 border-orange-400 hover:bg-orange-200 hover:shadow-xl hover:shadow-orange-200/50'
-                            }`}
-                            >
-                            <div className="text-2xl font-bold">Mesa {mesa.numero_mesa}</div>
-                            <span className={`px-3 py-2 rounded-xl text-xs font-bold ${
-                                mesa.estado === 'disponible' 
-                                ? 'bg-emerald-200 text-emerald-800 shadow-emerald-200/50' 
-                                : 'bg-orange-200 text-orange-800 shadow-orange-200/50'
-                            }`}>
-                                {mesa.estado === 'disponible' ? '✅ LIBRE' : '🪑 OCUPADA'}
-                            </span>
+                    
+                    {/* HEADER PEQUEÑO FIJO */}
+                    <div className="p-4 sm:p-6 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-green-50 flex-shrink-0">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Nueva Cuenta</h2>
+                                <p className="text-base text-gray-600">
+                                    Total: <span className="text-xl font-bold text-emerald-600">${formatDinero(calcularTotal())}</span>
+                                    {selectedProductos.length > 0 && ` (${selectedProductos.length} productos)`}
+                                </p>
+                            </div>
+                            <button onClick={handleCerrarModal} className="p-2 rounded-2xl hover:bg-gray-200 transition-all">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
                             </button>
-                        ))}
                         </div>
-                    </div>
-                    )}
 
-                    {/* PRODUCTOS SELECCIONADOS */}
-                    {selectedProductos.length > 0 && (
-                    <div className="p-6 sm:p-8 border-b border-gray-100 bg-gray-50">
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                        🛒 Productos Seleccionados ({selectedProductos.length})
-                        </h3>
-                        <div className="space-y-4">
-                        {selectedProductos.map(producto => (
-                            <div key={producto.id} className="bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                            <div className="flex-1 mb-4 sm:mb-0">
-                                <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
-                                <p className="text-sm text-gray-600">{producto.presentacion}</p>
-                            </div>
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-                                <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
-                                <button
-                                    onClick={() => handleDisminuirCantidad(producto.id)}
-                                    className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
-                                >
-                                    -
-                                </button>
+                        {/* FORM CABECERA COMPACTA */}
+                        <form className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Cliente *</label>
                                 <input
-                                    type="text"
-                                    value={producto.cantidad?.toString() || '1'}
-                                    onChange={(e) => handleCantidadChange(producto.id, parseFloat(e.target.value) || 1)}
-                                    className="w-20 p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-center font-bold text-base bg-white shadow-sm"
+                                    className="w-full p-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                                    value={createForm.cliente}
+                                    onChange={(e) => setCreateForm({ ...createForm, cliente: e.target.value })}
+                                    required
+                                    placeholder="Nombre del cliente"
                                 />
-                                <button
-                                    onClick={() => handleAumentarCantidad(producto.id)}
-                                    className="w-12 h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo Cuenta</label>
+                                <select
+                                    className="w-full p-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                                    value={createForm.tipo_cuenta}
+                                    onChange={handleTipoChange}
                                 >
-                                    +
-                                </button>
-                                </div>
-                                <div className="flex items-end sm:items-center gap-3">
-                                <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right sm:text-left">
-                                    ${formatDinero((producto.precio_venta || producto.precioventa) * (producto.cantidad || 1))}
-                                </span>
-                                <button
-                                    onClick={() => handleBorrarProducto(producto.id)}
-                                    className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
-                                >
-                                    🗑️
-                                </button>
+                                    <option value="individual">👤 Individual</option>
+                                    <option value="mesa">🪑 Mesa</option>
+                                </select>
+                            </div>
+                            <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-1 self-end">
+                                <span className="text-sm text-gray-500 text-right">Productos seleccionados</span>
+                                <div className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-600">
+                                    {selectedProductos.length}
                                 </div>
                             </div>
-                            </div>
-                        ))}
-                        </div>
+                        </form>
                     </div>
-                    )}
 
-                    {/* LISTA PRODUCTOS */}
-                    <div className="p-6 sm:p-8">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
-                        <h3 className="text-xl font-bold flex items-center gap-2">
-                        🛍️ Seleccionar Productos
-                        <span className="text-sm text-gray-500">Pg. {productosPage} de {productosPagination.totalPages || 1}</span>
-                        </h3>
+                    {/* CONTENIDO SCROLLABLE */}
+                    <div className="flex-1 overflow-y-auto min-h-0">
+                        
+                        {/* MESAS */}
+                        {createForm.tipo_cuenta === 'mesa' && (
+                            <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
+                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
+                                {/* Paginacion mesas */}
+                                    <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                        <button 
+                                            onClick={() => setMesasPage(p => Math.max(1, p - 1))}
+                                            disabled={mesasPage === 1}
+                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ‹
+                                        </button>
+                                        <button 
+                                            onClick={() => setMesasPage(p => Math.min(mesasTotalPages, p + 1))}
+                                            disabled={mesasPage === mesasTotalPages}
+                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ›
+                                        </button>
+                                    </div>  
+
+                                {/* Grid mesas */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                                    {mesas.map(mesa => (
+                                        <button
+                                            key={mesa.id}
+                                            type="button"
+                                            onClick={() => handleMesaSelect(mesa.id)}
+                                            className={`group p-4 sm:p-5 rounded-2xl transition-all duration-200 hover:scale-105 shadow-lg border-4 h-full flex flex-col items-center justify-center gap-3 ${
+                                                createForm.mesa_id === mesa.id
+                                                    ? 'ring-4 ring-blue-500 bg-blue-50 border-blue-400 shadow-2xl shadow-blue-200/50'
+                                                    : mesa.estado === 'disponible'
+                                                    ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200 hover:shadow-xl hover:shadow-emerald-200/50'
+                                                    : 'bg-orange-100 border-orange-400 hover:bg-orange-200 hover:shadow-xl hover:shadow-orange-200/50'
+                                            }`}
+                                        >
+                                            <div className="text-2xl font-bold">Mesa {mesa.numero_mesa}</div>
+                                            <span className={`px-3 py-2 rounded-xl text-xs font-bold ${
+                                                mesa.estado === 'disponible' 
+                                                    ? 'bg-emerald-200 text-emerald-800 shadow-emerald-200/50' 
+                                                    : 'bg-orange-200 text-orange-800 shadow-orange-200/50'
+                                            }`}>
+                                                {mesa.estado === 'disponible' ? '✅ LIBRE' : '🪑 OCUPADA'}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Paginacion mesas */}
+                                    <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                        <button 
+                                            onClick={() => setMesasPage(p => Math.max(1, p - 1))}
+                                            disabled={mesasPage === 1}
+                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ‹
+                                        </button>
+                                        <button 
+                                            onClick={() => setMesasPage(p => Math.min(mesasTotalPages, p + 1))}
+                                            disabled={mesasPage === mesasTotalPages}
+                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ›
+                                        </button>
+                                    </div>  
+                            </div>
+                        )}
+
+                        {/* LISTA PRODUCTOS DESTACADA */}
+                        <div className="p-6 sm:p-8 border-b-4 border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+                                {/* TÍTULO MÁS PEQUEÑO EN MÓVIL */}
+                                <h3 className="text-base sm:text-2xl font-bold flex items-center gap-2 text-emerald-800">
+                                    🛍️ Lista de Productos
+                                    <span className="text-sm sm:text-lg bg-emerald-200 text-emerald-800 px-3 py-1 rounded-full font-semibold">
+                                        {selectedProductos.length} seleccionado{selectedProductos.length !== 1 ? 's' : ''}
+                                    </span>
+                                </h3>
+                            </div>
+
+                            {/* PAGINACIÓN SUPERIOR */}
+                            {productosPagination.totalPages > 1 && (
+                                <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                    <button
+                                        onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
+                                        disabled={productosPage === 1}
+                                        className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                    >
+                                        ‹
+                                    </button>
+                                    <button
+                                        onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
+                                        disabled={productosPage === (productosPagination.totalPages || 1)}
+                                        className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                    >
+                                        ›
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                {productos.map(producto => {
+                                    // Calcular cantidad seleccionada de este producto
+                                    const cantidadSeleccionada = selectedProductos.filter(p => p.id === producto.id)
+                                        .reduce((total, p) => total + (p.cantidad || 1), 0);
+                                    
+                                    return (
+                                        <button
+                                            key={producto.id}
+                                            onClick={() => handleAgregarProducto(producto)}
+                                            disabled={producto.cantidaddisponible === 0}
+                                            className="group p-4 sm:p-5 border-3 border-emerald-300 rounded-2xl hover:border-emerald-500 hover:shadow-2xl hover:shadow-emerald-300/50 transition-all duration-300 hover:scale-105 bg-gradient-to-br from-white to-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed h-full flex flex-col items-start gap-2 shadow-lg hover:shadow-xl relative overflow-hidden"
+                                        >
+                                            {/* BADGE SELECCIONADO CON CANTIDAD */}
+                                            {cantidadSeleccionada > 0 && (
+                                                <div className="absolute top-2 right-2 flex items-center gap-1 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg z-20">
+                                                    <span className="text-sm">✓</span>
+                                                    <span>{cantidadSeleccionada}</span>
+                                                </div>
+                                            )}
+                                            
+                                            <div className="font-bold text-sm sm:text-base line-clamp-2 group-hover:text-emerald-700 leading-tight h-12 z-10 relative pr-8 sm:pr-0">
+                                                {producto.descripcion}
+                                            </div>
+                                            <div className="text-xs text-gray-600 z-10 relative pr-8 sm:pr-0">{producto.presentacion}</div>
+                                            <div className="font-bold text-emerald-600 text-lg sm:text-xl w-full text-left z-10 relative pr-8 sm:pr-0">
+                                                ${formatDinero(producto.precio_venta || producto.precioventa)}
+                                            </div>
+                                            <div className="text-xs text-gray-500 flex items-center gap-1 z-10 relative pr-8 sm:pr-0">
+                                                Stock <span className="font-semibold">{producto.cantidad_disponible}</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/*paginacion crear cuenta*/}
+                            {productosPagination.totalPages > 1 && (
+                                <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                    <button
+                                        onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
+                                        disabled={productosPage === 1}
+                                        className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                    >
+                                        ‹
+                                    </button>
+                                    <button
+                                        onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
+                                        disabled={productosPage === (productosPagination.totalPages || 1)}
+                                        className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                    >
+                                        ›
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* DETALLES DE PRODUCTOS SELECCIONADOS */}
+                        {selectedProductos.length > 0 && (
+                            <div className="p-6 sm:p-8 border-b border-gray-100 bg-gray-50">
+                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800">
+                                    📋 Detalles de Productos ({selectedProductos.length})
+                                </h3>
+                                <div className="space-y-4">
+                                    {selectedProductos.map(producto => (
+                                        <div key={producto.id} className="bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row lg:items-center lg:gap-6">
+                                            {/* COLUMNA IZQUIERDA - Descripción + Chip */}
+                                            <div className="flex-1 mb-6 lg:mb-0 lg:mr-6">
+                                                <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
+                                                <p className="text-sm text-gray-600 mt-1">{producto.presentacion}</p>
+                                                
+                                                {/* CHIP PROMOCIÓN ACTIVA */}
+                                                {producto.promocion_activa && (
+                                                    <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                                        🎉 {producto.promocion_activa.nombre_promocion}{' '}
+                                                        <span className="font-normal">
+                                                            ({formatDinero(producto.promocion_activa.nuevo_precio_venta)} c/u)
+                                                        </span>
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* BOTONES PROMOCIONES */}
+                                            {promocionesPorProducto[producto.id] && (
+                                                <div className="flex flex-wrap gap-1 lg:gap-2 mb-4 lg:mb-0 lg:w-32 order-1 lg:order-none">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handlePromocionChange(producto.id, null)}
+                                                        className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                            !producto.promocion_activa
+                                                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/50 scale-105'
+                                                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:shadow-lg'
+                                                        }`}
+                                                    >
+                                                        💰 Individual
+                                                    </button>
+                                                    {promocionesPorProducto[producto.id].map((promo) => (
+                                                        <button
+                                                            key={promo.id}
+                                                            type="button"
+                                                            onClick={() => handlePromocionChange(producto.id, promo)}
+                                                            className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                                producto.promocion_activa?.id === promo.id
+                                                                    ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-500/50 scale-105'
+                                                                    : 'bg-orange-100 text-orange-800 hover:bg-orange-200 hover:shadow-lg'
+                                                            }`}
+                                                        >
+                                                            {promo.nombre_promocion}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* CONTROLES */}
+                                            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 lg:gap-4 w-full lg:w-auto order-last lg:order-none">
+                                                <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                                                    <button
+                                                        onClick={() => handleDisminuirCantidad(producto.id)}
+                                                        className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input
+                                                        type="text"
+                                                        value={producto.cantidad?.toString() || '1'}
+                                                        onChange={(e) => handleCantidadChange(producto.id, parseFloat(e.target.value) || 1)}
+                                                        className="w-20 p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-center font-bold text-base bg-white shadow-sm"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleAumentarCantidad(producto.id)}
+                                                        className="w-12 h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                                
+                                                <div className="flex items-end lg:items-center gap-3">
+                                                    <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right lg:text-left">
+                                                        ${formatDinero((producto.precio_venta || producto.precioventa) * (producto.cantidad || 1))}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleBorrarProducto(producto.id)}
+                                                        className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* BOTONES MÁS PEQUEÑOS EN MÓVIL */}
+                    <div className="p-4 sm:p-8 bg-gradient-to-r from-gray-50 to-white border-t border-gray-100 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-between items-center">
                         <button
-                            type="button"
+                            onClick={handleCerrarModal}
+                            className="flex-1 sm:flex-none w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 border border-gray-300 text-gray-700 font-semibold text-sm sm:text-base rounded-xl sm:rounded-2xl hover:bg-gray-50 hover:shadow-md transition-all duration-200"
+                        >
+                            Cancelar
+                        </button>
+                        <button
                             onClick={handleCrearCuenta}
                             disabled={!createForm.cliente || selectedProductos.length === 0 || creatingCuenta}
-                            className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto order-last sm:order-none flex items-center justify-center gap-2 disabled:shadow-none"
+                            className="flex-1 sm:flex-none w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-2.5 sm:py-3 px-6 sm:px-8 rounded-xl sm:rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 disabled:shadow-none text-sm sm:text-base"
                         >
                             {creatingCuenta ? (
                                 <>
-                                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
                                     </svg>
@@ -690,348 +1003,436 @@ const Cuentas = () => {
                             ) : (
                                 <>
                                     Crear Cuenta 
-                                    <span className="text-lg font-bold">{selectedProductos.length}</span>
+                                    <span className="text-base sm:text-lg font-bold">{selectedProductos.length}</span>
                                 </>
                             )}
                         </button>
                     </div>
-
-                    {/* PAGINACIÓN PRODUCTOS */}
-                    {productosPagination.totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-2 pt-8 pb-6 mb-6">
-                        <button
-                            onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
-                            disabled={productosPage === 1}
-                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                        >
-                            ‹
-                        </button>
-                        <button
-                            onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
-                            disabled={productosPage === (productosPagination.totalPages || 1)}
-                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                        >
-                            ›
-                        </button>
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                        {productos.map(producto => (
-                        <button
-                            key={producto.id}
-                            onClick={() => handleAgregarProducto(producto)}
-                            disabled={producto.cantidaddisponible === 0}
-                            className="group p-4 sm:p-5 border-2 border-gray-200 rounded-2xl hover:border-emerald-400 hover:shadow-2xl hover:shadow-emerald-200/50 transition-all duration-300 hover:scale-105 bg-white disabled:opacity-50 disabled:cursor-not-allowed h-full flex flex-col items-start gap-2 shadow-sm hover:shadow-lg"
-                        >
-                            <div className="font-bold text-sm sm:text-base line-clamp-2 group-hover:text-emerald-700 leading-tight h-12">
-                            {producto.descripcion}
-                            </div>
-                            <div className="text-xs text-gray-600">{producto.presentacion}</div>
-                            <div className="font-bold text-emerald-600 text-lg sm:text-xl w-full text-left">
-                            ${formatDinero(producto.precio_venta || producto.precio_venta)}
-                            </div>
-                            <div className="text-xs text-gray-500 flex items-center gap-1">
-                            Stock <span className="font-semibold">{producto.cantidad_disponible}</span>
-                            </div>
-                        </button>
-                        ))}
-                    </div>
-                    {/* PAGINACIÓN PRODUCTOS */}
-                    {productosPagination.totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-2 pt-8 pb-6 mb-6">
-                        <button
-                            onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
-                            disabled={productosPage === 1}
-                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                        >
-                            ‹
-                        </button>
-                        <button
-                            onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
-                            disabled={productosPage === (productosPagination.totalPages || 1)}
-                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                        >
-                            ›
-                        </button>
-                        </div>
-                    )}
-                    </div>
-                </div>
                 </div>
             </div>
             </>
         )}
 
-        {/* ✅ MODAL DETALLE  */}
+        {/* ✅ MODAL DETALLE */}
         {showDetailModal && selectedCuenta && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] animate-in fade-in-0 zoom-in-95 duration-200">
-            <div className="fixed inset-0 z-[70] p-4 sm:p-6 flex items-center justify-center">
-                <div className="w-full max-w-6xl max-h-[95vh] flex flex-col bg-white rounded-3xl sm:rounded-[2rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
-                {/* HEADER - EDITABLE */}
-                <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
-                    <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
-                        Editar Cuenta #{selectedCuenta.id}
-                        </h2>
-                        <p className="text-lg text-gray-600">
-                        Total <span className="text-2xl font-bold text-emerald-600">
-                            ${formatDinero([...detalleProductos, ...editProductos].reduce((total, p) => total + (p.precio_venta || p.precioventa || 0) * (p.cantidad || 1), 0))}
-                        </span>
-                        ({detalleProductos.length + editProductos.length} productos)
-                        </p>
-                    </div>
-                    <button onClick={handleCerrarDetalle} className="p-2 rounded-2xl hover:bg-gray-200 transition-all">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                    </div>
-
-                    {/* FORM CABECERA EDITABLE*/}
-                    <form className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Cliente *</label>
-                        <input
-                        className="w-full p-4 text-base border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                        value={editForm.cliente}
-                        onChange={(e) => setEditForm({ ...editForm, cliente: e.target.value })}
-                        required
-                        placeholder="Nombre del cliente"
-                        />
-                    </div>
-                    
-                    {/* ✅ TIPO CUENTA */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo Cuenta</label>
-                        <select
-                        className="w-full p-4 text-base border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-lg leading-8"
-                        value={editForm.tipo_cuenta || 'individual'}
-                        onChange={(e) => {
-                            setEditForm({ 
-                            ...editForm, 
-                            tipo_cuenta: e.target.value,
-                            mesa_id: e.target.value === 'individual' ? null : editForm.mesa_id
-                            });
-                        }}
-                        >
-                        <option className="py-5 px-4 text-xl leading-10 block font-medium bg-white hover:bg-gray-50" value="individual">
-                            👤 Individual
-                        </option>
-                        <option className="py-5 px-4 text-xl leading-10 block font-medium bg-white hover:bg-gray-50" value="mesa">
-                            🪑 Mesa
-                        </option>
-                        </select>
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-2 self-end">
-                        <span className="text-sm text-gray-500 text-right">Productos totales</span>
-                        <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-emerald-600">
-                        {detalleProductos.length + editProductos.length}
-                        </div>
-                    </div>
-                    </form>
-                </div>
-
-                {/* CONTENIDO SCROLLABLE */}
-                <div className="flex-1 overflow-y-auto min-h-0">
-                    {/* ✅ MESAS*/}
-                    {editForm.tipo_cuenta === 'mesa' && (
-                    <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                        {mesas.map(mesa => (
-                            <button
-                            key={mesa.id}
-                            type="button"
-                            onClick={() => setEditForm({ ...editForm, mesa_id: mesa.id })}
-                            className={`group p-4 sm:p-5 rounded-2xl transition-all duration-200 hover:scale-105 shadow-lg border-4 h-full flex flex-col items-center justify-center gap-3 ${
-                                editForm.mesa_id === mesa.id
-                                ? 'ring-4 ring-blue-500 bg-blue-50 border-blue-400 shadow-2xl shadow-blue-200/50'
-                                : mesa.estado === 'disponible'
-                                ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200 hover:shadow-xl hover:shadow-emerald-200/50'
-                                : 'bg-orange-100 border-orange-400 hover:bg-orange-200 hover:shadow-xl hover:shadow-orange-200/50'
-                            }`}
-                            >
-                            <div className="text-2xl font-bold">Mesa {mesa.numero_mesa}</div>
-                            <span className={`px-3 py-2 rounded-xl text-xs font-bold ${
-                                mesa.estado === 'disponible' 
-                                ? 'bg-emerald-200 text-emerald-800 shadow-emerald-200/50' 
-                                : 'bg-orange-200 text-orange-800 shadow-orange-200/50'
-                            }`}>
-                                {mesa.estado === 'disponible' ? '✅ LIBRE' : '🪑 OCUPADA'}
-                            </span>
-                            </button>
-                        ))}
-                        </div>
-                    </div>
-                    )}
-                    {/* PRODUCTOS ORIGINALES + NUEVOS */}
-                    {(detalleProductos.length > 0 || editProductos.length > 0) && (
-                    <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                        🛒 Productos ({detalleProductos.length + editProductos.length})
-                        </h3>
-                        <div className="space-y-4">
-                        {/* ORIGINALES */}
-                        {detalleProductos.map(producto => (
-                            <div key={producto.id} className="bg-white/80 p-5 rounded-2xl border-l-4 border-orange-400 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                            <div className="flex-1 mb-4 sm:mb-0">
-                                <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
-                                <p className="font-bold text-sm text-gray-700 line-clamp-1">{producto.presentacion}</p>
-                                <p className="text-sm text-gray-600">Original</p>
-                            </div>
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-                                <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
-                                <button
-                                    onClick={() => handleDisminuirCantidadDetalle(producto.id)}
-                                    className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
-                                >
-                                    -
-                                </button>
-                                <span className="w-20 p-2 border border-gray-300 rounded-xl text-center font-bold text-base bg-white shadow-sm">
-                                    {producto.cantidad || 1}
-                                </span>
-                                <button
-                                    onClick={() => handleAumentarCantidadDetalle(producto.id)}
-                                    className="w-12 h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
-                                >
-                                    +
-                                </button>
+                <div className="fixed inset-0 z-[70] p-4 sm:p-6 flex items-center justify-center">
+                    <div className="w-full max-w-6xl max-h-[95vh] flex flex-col bg-white rounded-3xl sm:rounded-[2rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+                        
+                        {/* HEADER PEQUEÑO FIJO */}
+                        <div className="p-4 sm:p-6 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                                        Editar Cuenta #{selectedCuenta.id}
+                                    </h2>
+                                    <p className="text-base text-gray-600">
+                                        Total <span className="text-xl font-bold text-emerald-600">
+                                            ${formatDinero([...detalleProductos, ...editProductos].reduce((total, p) => total + (p.precio_venta || p.precioventa || 0) * (p.cantidad || 1), 0))}
+                                        </span>
+                                        ({detalleProductos.length + editProductos.length} productos)
+                                    </p>
                                 </div>
-                                <div className="flex items-end sm:items-center gap-3">
-                                <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right sm:text-left">
-                                    ${formatDinero((producto.precio_venta || 0) * (producto.cantidad || 1))}
-                                </span>
-                                <button
-                                    onClick={() => handleEliminarProductoDetalle(producto.id)}
-                                    className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
-                                >
-                                    🗑️
-                                </button>
-                                </div>
-                            </div>
-                            </div>
-                        ))}
-                        {/* NUEVOS */}
-                        {editProductos.map(producto => (
-                            <div key={producto.id} className="bg-white/80 p-5 rounded-2xl border-l-4 border-emerald-400 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                            <div className="flex-1 mb-4 sm:mb-0">
-                                <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
-                                <p className="font-bold text-sm text-gray-700 line-clamp-1">{producto.presentacion}</p>
-                                <p className="text-sm text-gray-600 text-emerald-700 font-medium">Nuevo</p>
-                            </div>
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-                                <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
-                                <button
-                                    onClick={() => handleDisminuirCantidadDetalle(producto.id)}
-                                    className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
-                                >
-                                    -
-                                </button>
-                                <span className="w-20 p-2 border border-gray-300 rounded-xl text-center font-bold text-base bg-white shadow-sm">
-                                    {producto.cantidad || 1}
-                                </span>
-                                <button
-                                    onClick={() => handleAumentarCantidadDetalle(producto.id)}
-                                    className="w-12 h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
-                                >
-                                    +
-                                </button>
-                                </div>
-                                <div className="flex items-end sm:items-center gap-3">
-                                <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right sm:text-left">
-                                    ${formatDinero((producto.precioventa || producto.precio_venta || 0) * (producto.cantidad || 1))}
-                                </span>
-                                <button
-                                    onClick={() => handleEliminarProductoDetalle(producto.id)}
-                                    className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
-                                >
-                                    🗑️
-                                </button>
-                                </div>
-                            </div>
-                            </div>
-                        ))}
-                        </div>
-                    </div>
-                    )}
-
-                    {/* AGREGAR PRODUCTOS NUEVOS */}
-                    <div className="p-6 sm:p-8">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
-                        <h3 className="text-xl font-bold flex items-center gap-2">
-                        ➕ Agregar Más Productos
-                        <span className="text-sm text-gray-500">Pg. {productosPage} de {productosPagination.totalPages || 1}</span>
-                        </h3>
-                        <button
-                        type="button"
-                        onClick={handleGuardarDetalle}
-                        disabled={!editForm.cliente || creatingCuentaDetalle}
-                        className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto order-last sm:order-none flex items-center justify-center gap-2"
-                        >
-                        {creatingCuentaDetalle ? (
-                                <>
-                                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                <button onClick={handleCerrarDetalle} className="p-2 rounded-2xl hover:bg-gray-200 transition-all">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
-                                    Guardando Cambios...
-                                </>
-                            ) : (
-                                <>
-                                    Guardar Cambios 
-                                </>
-                            )}
-                        </button>
-                    </div>
+                                </button>
+                            </div>
 
-                    {/* PAGINACIÓN PRODUCTOS */}
-                    {productosPagination.totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-2 pt-8 pb-6 mb-6">
-                        <button
-                            onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
-                            disabled={productosPage === 1}
-                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                        >
-                            ‹
-                        </button>
-                        <button
-                            onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
-                            disabled={productosPage === (productosPagination.totalPages || 1)}
-                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                        >
-                            ›
-                        </button>
+                            {/* FORM CABECERA COMPACTA */}
+                            <form className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Cliente *</label>
+                                    <input
+                                        className="w-full p-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                        value={editForm.cliente}
+                                        onChange={(e) => setEditForm({ ...editForm, cliente: e.target.value })}
+                                        required
+                                        placeholder="Nombre del cliente"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo Cuenta</label>
+                                    <select
+                                        className="w-full p-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                        value={editForm.tipo_cuenta || 'individual'}
+                                        onChange={(e) => {
+                                            setEditForm({ 
+                                                ...editForm, 
+                                                tipo_cuenta: e.target.value,
+                                                mesa_id: e.target.value === 'individual' ? null : editForm.mesa_id
+                                            });
+                                        }}
+                                    >
+                                        <option value="individual">👤 Individual</option>
+                                        <option value="mesa">🪑 Mesa</option>
+                                    </select>
+                                </div>
+                                <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-1 self-end">
+                                    <span className="text-sm text-gray-500 text-right">Productos totales</span>
+                                    <div className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-600">
+                                        {detalleProductos.length + editProductos.length}
+                                    </div>
+                                </div>
+                            </form>
                         </div>
-                    )}
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                        {productos.map(producto => (
-                        <button
-                            key={producto.id}
-                            onClick={() => handleAgregarProductoDetalle(producto)}
-                            disabled={detalleProductos.find(p => p.id === producto.id) || editProductos.find(p => p.id === producto.id)}
-                            className="group p-4 sm:p-5 border-2 border-gray-200 rounded-2xl hover:border-blue-400 hover:shadow-2xl hover:shadow-blue-200/50 transition-all duration-300 hover:scale-105 bg-white disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 h-full flex flex-col items-start gap-2 shadow-sm hover:shadow-lg"
-                        >
-                            <div className="font-bold text-sm sm:text-base line-clamp-2 group-hover:text-blue-700 leading-tight h-12">
-                            {producto.descripcion}
+                        {/* CONTENIDO SCROLLABLE */}
+                        <div className="flex-1 overflow-y-auto min-h-0">
+                            
+                            {/* MESAS */}
+                            {editForm.tipo_cuenta === 'mesa' && (
+                                <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
+                                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
+                                    {/* Paginacion mesas */}
+                                    <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                        <button 
+                                            onClick={() => setMesasPage(p => Math.max(1, p - 1))}
+                                            disabled={mesasPage === 1}
+                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ‹
+                                        </button>
+                                        <button 
+                                            onClick={() => setMesasPage(p => Math.min(mesasTotalPages, p + 1))}
+                                            disabled={mesasPage === mesasTotalPages}
+                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ›
+                                        </button>
+                                    </div>      
+                                    {/*Grid de mesas */}                          
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                                        {mesas.map(mesa => (
+                                            <button
+                                                key={mesa.id}
+                                                type="button"
+                                                onClick={() => setEditForm({ ...editForm, mesa_id: mesa.id })}
+                                                className={`group p-4 sm:p-5 rounded-2xl transition-all duration-200 hover:scale-105 shadow-lg border-4 h-full flex flex-col items-center justify-center gap-3 ${
+                                                    editForm.mesa_id === mesa.id
+                                                        ? 'ring-4 ring-blue-500 bg-blue-50 border-blue-400 shadow-2xl shadow-blue-200/50'
+                                                        : mesa.estado === 'disponible'
+                                                        ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200 hover:shadow-xl hover:shadow-emerald-200/50'
+                                                        : 'bg-orange-100 border-orange-400 hover:bg-orange-200 hover:shadow-xl hover:shadow-orange-200/50'
+                                                }`}
+                                            >
+                                                <div className="text-2xl font-bold">Mesa {mesa.numero_mesa}</div>
+                                                <span className={`px-3 py-2 rounded-xl text-xs font-bold ${
+                                                    mesa.estado === 'disponible' 
+                                                        ? 'bg-emerald-200 text-emerald-800 shadow-emerald-200/50' 
+                                                        : 'bg-orange-200 text-orange-800 shadow-orange-200/50'
+                                                }`}>
+                                                    {mesa.estado === 'disponible' ? '✅ LIBRE' : '🪑 OCUPADA'}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {/* Paginacion mesas */}
+                                    <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                        <button 
+                                            onClick={() => setMesasPage(p => Math.max(1, p - 1))}
+                                            disabled={mesasPage === 1}
+                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ‹
+                                        </button>
+                                        <button 
+                                            onClick={() => setMesasPage(p => Math.min(mesasTotalPages, p + 1))}
+                                            disabled={mesasPage === mesasTotalPages}
+                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ›
+                                        </button>
+                                    </div>                               
+                                </div>
+                            )}
+
+                            {/* LISTA PRODUCTOS DESTACADA */}
+                            <div className="p-6 sm:p-8 border-b-4 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+                                    <h3 className="text-base sm:text-2xl font-bold flex items-center gap-2 text-blue-800">
+                                        🛍️ Lista de Productos
+                                        <span className="text-sm sm:text-lg bg-blue-200 text-blue-800 px-3 py-1 rounded-full font-semibold">
+                                            {detalleProductos.length + editProductos.length} total
+                                        </span>
+                                    </h3>
+                                </div>
+
+                                {/* PAGINACIÓN SUPERIOR */}
+                                {productosPagination.totalPages > 1 && (
+                                    <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                        <button
+                                            onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
+                                            disabled={productosPage === 1}
+                                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ‹
+                                        </button>
+                                        <button
+                                            onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
+                                            disabled={productosPage === (productosPagination.totalPages || 1)}
+                                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ›
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                    {productos.map(producto => {
+                                        const yaExiste = detalleProductos.find(p => p.id === producto.id) || 
+                                                    editProductos.find(p => p.id === producto.id);
+                                        const cantidadSeleccionada = yaExiste ? 
+                                            (detalleProductos.find(p => p.id === producto.id)?.cantidad || 0) + 
+                                            (editProductos.find(p => p.id === producto.id)?.cantidad || 0) : 0;
+                                        
+                                        return (
+                                            <button
+                                                key={producto.id}
+                                                onClick={() => handleAgregarProductoDetalle(producto)}
+                                                disabled={yaExiste}
+                                                className="group p-4 sm:p-5 border-3 border-blue-300 rounded-2xl hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-300/50 transition-all duration-300 hover:scale-105 bg-gradient-to-br from-white to-blue-50 disabled:opacity-50 disabled:cursor-not-allowed h-full flex flex-col items-start gap-2 shadow-lg hover:shadow-xl relative overflow-hidden"
+                                            >
+                                                {/* BADGE SELECCIONADO CON CANTIDAD */}
+                                                {cantidadSeleccionada > 0 && (
+                                                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg z-20">
+                                                        <span className="text-sm">✓</span>
+                                                        <span>{cantidadSeleccionada}</span>
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="font-bold text-sm sm:text-base line-clamp-2 group-hover:text-blue-700 leading-tight h-12 z-10 relative pr-8 sm:pr-0">
+                                                    {producto.descripcion}
+                                                </div>
+                                                <div className="text-xs  text-gray-600 z-10 relative pr-8 sm:pr-0">{producto.presentacion}</div>
+                                                <div className="font-bold text-emerald-600 text-lg sm:text-xl w-full text-left z-10 relative pr-8 sm:pr-0">
+                                                    ${formatDinero(producto.precio_venta)}
+                                                </div>
+                                                <div className="text-xs text-gray-500 flex items-center gap-1 z-10 relative pr-8 sm:pr-0">
+                                                    Stock <span className="font-semibold">{producto.cantidad_disponible}</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* PAGINACIÓN*/}
+                                {productosPagination.totalPages > 1 && (
+                                    <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                        <button
+                                            onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
+                                            disabled={productosPage === 1}
+                                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ‹
+                                        </button>
+                                        <button
+                                            onClick={() => setProductosPage(Math.min(productosPagination.totalPages || 1, productosPage + 1))}
+                                            disabled={productosPage === (productosPagination.totalPages || 1)}
+                                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            ›
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            <div className="text-xs text-gray-600">{producto.presentacion}</div>
-                            <div className="font-bold text-emerald-600 text-lg sm:text-xl w-full text-left">
-                            ${formatDinero(producto.precio_venta)}
-                            </div>
-                            <div className="text-xs text-gray-500 flex items-center gap-1">
-                            Stock <span className="font-semibold">{producto.cantidad_disponible}</span>
-                            </div>
-                        </button>
-                        ))}
-                    </div>
+
+                            {/* DETALLES DE PRODUCTOS */}
+                            {(detalleProductos.length > 0 || editProductos.length > 0) && (
+                                <div className="p-6 sm:p-8 border-b border-gray-100 bg-gray-50">
+                                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800">
+                                        📋 Detalles de Productos ({detalleProductos.length + editProductos.length})
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {/* NUEVOS */}
+                                        {editProductos.map(producto => (
+                                            <div key={producto.id} className="bg-white/80 p-5 rounded-2xl border-l-4 border-emerald-400 shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row lg:items-center lg:gap-6">
+                                                <div className="flex-1 mb-6 lg:mb-0 lg:mr-6">
+                                                    <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
+                                                    <p className="text-sm text-gray-600 mt-1">{producto.presentacion}</p>
+                                                    {producto.promocion_activa && (
+                                                        <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                                            🎉 {producto.promocion_activa.nombre_promocion}{' '}
+                                                            <span className="font-normal">({formatDinero(producto.promocion_activa.nuevo_precio_venta)} c/u)</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {promocionesPorProductoDetalle[producto.id] && (
+                                                    <div className="flex flex-wrap gap-1 lg:gap-2 mb-4 lg:mb-0 lg:w-32 order-1 lg:order-none">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePromocionChangeEdit(producto.id, null)}
+                                                            className={`px-3 py-2 m-1.5 md:m-0  rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                                !producto.promocion_activa
+                                                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/50 scale-105'
+                                                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:shadow-lg'
+                                                            }`}
+                                                        >
+                                                            💰 Individual
+                                                        </button>
+                                                        {promocionesPorProductoDetalle[producto.id].map((promo) => (
+                                                            <button
+                                                                key={promo.id}
+                                                                type="button"
+                                                                onClick={() => handlePromocionChangeEdit(producto.id, promo)}
+                                                                className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                                    producto.promocion_activa?.id == promo.id
+                                                                        ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-500/50 scale-105'
+                                                                        : 'bg-orange-100 text-orange-800 hover:bg-orange-200 hover:shadow-lg'
+                                                                }`}
+                                                            >
+                                                                {promo.nombre_promocion}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 lg:gap-4 w-full lg:w-auto order-last lg:order-none">
+                                                    <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                                                        <button
+                                                            onClick={() => handleDisminuirCantidadEdit(producto.id)}
+                                                            className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
+                                                        >
+                                                            -
+                                                        </button>
+                                                        <span className="w-20 p-2 border border-gray-300 rounded-xl text-center font-bold text-base bg-white shadow-sm">
+                                                            {producto.cantidad || 1}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => handleAumentarCantidadEdit(producto.id)}
+                                                            className="w-12 h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-end lg:items-center gap-3">
+                                                        <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right lg:text-left">
+                                                            ${formatDinero((producto.precio_venta || producto.precioventa || 0) * (producto.cantidad || 1))}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => handleEliminarProductoEdit(producto.id)}
+                                                            className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <p className="text-sm text-gray-600 text-emerald-700 font-medium my-2">Nuevo</p>
+                                            </div>
+                                        ))}
+
+                                        {/* ORIGINALES */}
+                                        {detalleProductos.map(producto => (
+                                            <div key={producto.id} className="bg-white/80 p-5 rounded-2xl border-l-4 border-orange-400 shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row lg:items-center lg:gap-6">
+                                                <div className="flex-1 mb-6 lg:mb-0 lg:mr-6">
+                                                    <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
+                                                    <p className="text-sm text-gray-600 mt-1">{producto.presentacion}</p>
+                                                    {producto.promocion_activa && (
+                                                        <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                                                            🎉 {producto.promocion_activa.nombre_promocion}{' '}
+                                                            <span className="font-normal">({formatDinero(producto.promocion_activa.nuevo_precio_venta)} c/u)</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {promocionesPorProductoDetalle[String(producto.producto_id)] && (
+                                                    <div className="flex flex-wrap gap-1 lg:gap-2 mb-4 lg:mb-0 lg:w-32 order-1 lg:order-none">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePromocionChangeDetalle(String(producto.id), null)}
+                                                            className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                                !producto.promocion_activa 
+                                                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/50 scale-105'
+                                                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:shadow-lg'
+                                                            }`}
+                                                        >
+                                                            💰 Individual
+                                                        </button>
+                                                        {promocionesPorProductoDetalle[String(producto.producto_id)].map((promo) => (
+                                                            <button
+                                                                key={promo.id}
+                                                                type="button"
+                                                                onClick={() => handlePromocionChangeDetalle(String(producto.id), promo)}
+                                                                className={`px-3 py-2 m-1.5 md:m-0  rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                                    producto.promocion_activa?.id == promo.id
+                                                                        ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-500/50 scale-105'
+                                                                        : 'bg-orange-100 text-orange-800 hover:bg-orange-200 hover:shadow-lg'
+                                                                }`}
+                                                            >
+                                                                {promo.nombre_promocion}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 lg:gap-4 w-full lg:w-auto order-last lg:order-none">
+                                                    <div className="flex items-center justify-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                                                        <button
+                                                            onClick={() => handleDisminuirCantidadDetalle(producto.id)}
+                                                            className="w-12 h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all"
+                                                        >
+                                                            -
+                                                        </button>
+                                                        <span className="w-20 p-2 border border-gray-300 rounded-xl text-center font-bold text-base bg-white shadow-sm">
+                                                            {producto.cantidad || 1}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => handleAumentarCantidadDetalle(producto.id)}
+                                                            className="w-12 h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-end lg:items-center gap-3">
+                                                        <span className="font-bold text-2xl text-emerald-600 min-w-[80px] text-right lg:text-left">
+                                                            ${formatDinero((producto.precio_venta || 0) * (producto.cantidad || 1))}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => handleEliminarProductoDetalle(producto.id)}
+                                                            className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-all shadow-md"
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <p className="text-sm text-gray-600 my-2">Original</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* BOTONES MÁS PEQUEÑOS EN MÓVIL */}
+                        <div className="p-4 sm:p-8 bg-gradient-to-r from-gray-50 to-white border-t border-gray-100 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-between items-center">
+                            <button
+                                onClick={handleCerrarDetalle}
+                                className="flex-1 sm:flex-none w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 border border-gray-300 text-gray-700 font-semibold text-sm sm:text-base rounded-xl sm:rounded-2xl hover:bg-gray-50 hover:shadow-md transition-all duration-200"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleGuardarDetalle}
+                                disabled={!editForm.cliente || creatingCuentaDetalle}
+                                className="flex-1 sm:flex-none w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-2.5 sm:py-3 px-6 sm:px-8 rounded-xl sm:rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 disabled:shadow-none text-sm sm:text-base"
+                            >
+                                {creatingCuentaDetalle ? (
+                                    <>
+                                        <svg className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                        </svg>
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    'Guardar Cambios'
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
-                </div>
-            </div>
             </div>
         )}
         </>

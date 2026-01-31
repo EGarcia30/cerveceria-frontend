@@ -60,10 +60,10 @@ const Dashboard = () => {
                 {/* HEADER */}
                 <div className="text-center mb-12">
                     <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-4">
-                        📊 Cervecería
+                        📊 Reportes
                     </h1>
                     <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-                        Métricas en tiempo real de tu negocio
+                        Métricas en tiempo real.
                     </p>
                 </div>
 

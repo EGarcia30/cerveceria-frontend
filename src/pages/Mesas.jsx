@@ -105,6 +105,21 @@ const Mesas = () => {
         setShowEditModal(true);
     };
 
+    const closeModal = async () => {
+
+        setFormData({
+            numero_mesa: '',
+            estado: 'disponible'
+        })
+
+        if(showCreateModal) setShowCreateModal(false)
+        
+        if(showEditModal){
+            setShowEditModal(false);
+            setEditingId(null);
+        } 
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 py-8 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
@@ -230,7 +245,7 @@ const Mesas = () => {
                 {/* MODAL CREAR */}
                 {showCreateModal && (
                     <>
-                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]" onClick={() => setShowCreateModal(false)} />
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]" onClick={closeModal} />
                         <div className="fixed inset-0 z-[60] p-4 flex items-center justify-center">
                             <div className="bg-white rounded-3xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
                                 <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">➕ Nueva Mesa</h2>
@@ -263,18 +278,18 @@ const Mesas = () => {
                                     
                                     <div className="flex gap-4 pt-4">
                                         <button
-                                            type="button"
-                                            onClick={() => setShowCreateModal(false)}
-                                            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg"
-                                        >
-                                            Cancelar
-                                        </button>
-                                        <button
                                             type="submit"
                                             className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl"
                                         >
                                             Crear Mesa
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={closeModal}
+                                            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg"
+                                        >
+                                            Cancelar
+                                        </button>                                        
                                     </div>
                                 </form>
                             </div>
@@ -285,7 +300,7 @@ const Mesas = () => {
                 {/* MODAL EDITAR */}
                 {showEditModal && (
                     <>
-                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]" onClick={() => setShowEditModal(false)} />
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]" onClick={closeModal} />
                         <div className="fixed inset-0 z-[60] p-4 flex items-center justify-center">
                             <div className="bg-white rounded-3xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
                                 <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">✏️ Editar Mesa</h2>
@@ -301,8 +316,7 @@ const Mesas = () => {
                                             onChange={(e) => setFormData({ ...formData, numero_mesa: e.target.value })}
                                             required
                                         />
-                                    </div>
-                                    
+                                    </div>                                    
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-3">Estado</label>
                                         <select
@@ -317,18 +331,18 @@ const Mesas = () => {
                                     
                                     <div className="flex gap-4 pt-4">
                                         <button
-                                            type="button"
-                                            onClick={() => { setShowEditModal(false); setEditingId(null); }}
-                                            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg"
-                                        >
-                                            Cancelar
-                                        </button>
-                                        <button
                                             type="submit"
                                             className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl"
                                         >
                                             Actualizar
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={closeModal}
+                                            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg"
+                                        >
+                                            Cancelar
+                                        </button>                                        
                                     </div>
                                 </form>
                             </div>

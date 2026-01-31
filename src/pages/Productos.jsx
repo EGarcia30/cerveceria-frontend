@@ -236,7 +236,7 @@ const Productos = () => {
                             onClick={handleCerrarModal}
                         />
                         
-                        {/* Modal - CENTRO PERFECTO */}
+                        {/* Modal*/}
                         <div className="fixed inset-0 flex items-center justify-center p-4 z-50 pointer-events-none">
                             <div className="w-full max-w-md max-h-[90vh] overflow-y-auto pointer-events-auto transform transition-all duration-300 ease-out scale-100 opacity-100 translate-y-0
                                 bg-white rounded-3xl p-8 shadow-2xl border border-gray-100 mx-4">
