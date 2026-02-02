@@ -728,6 +728,7 @@ const Cuentas = () => {
                             <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
                                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
                                 {/* Paginacion mesas */}
+                                { mesasTotalPages > 1 && (
                                     <div className="flex items-center justify-center gap-2 pb-4 mb-2">
                                         <button 
                                             onClick={() => setMesasPage(p => Math.max(1, p - 1))}
@@ -743,8 +744,8 @@ const Cuentas = () => {
                                         >
                                             ›
                                         </button>
-                                    </div>  
-
+                                    </div> 
+                                )}                                     
                                 {/* Grid mesas */}
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
                                     {mesas.map(mesa => (
@@ -771,8 +772,8 @@ const Cuentas = () => {
                                         </button>
                                     ))}
                                 </div>
-
                                 {/* Paginacion mesas */}
+                                {mesasTotalPages > 1 && (
                                     <div className="flex items-center justify-center gap-2 pt-4 mb-2">
                                         <button 
                                             onClick={() => setMesasPage(p => Math.max(1, p - 1))}
@@ -789,6 +790,7 @@ const Cuentas = () => {
                                             ›
                                         </button>
                                     </div>  
+                                )}
                             </div>
                         )}
 
@@ -1086,22 +1088,24 @@ const Cuentas = () => {
                                 <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50">
                                     <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
                                     {/* Paginacion mesas */}
-                                    <div className="flex items-center justify-center gap-2 pb-4 mb-2">
-                                        <button 
-                                            onClick={() => setMesasPage(p => Math.max(1, p - 1))}
-                                            disabled={mesasPage === 1}
-                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                                        >
-                                            ‹
-                                        </button>
-                                        <button 
-                                            onClick={() => setMesasPage(p => Math.min(mesasTotalPages, p + 1))}
-                                            disabled={mesasPage === mesasTotalPages}
-                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                                        >
-                                            ›
-                                        </button>
-                                    </div>      
+                                    {mesasTotalPages > 1 && (
+                                        <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                            <button 
+                                                onClick={() => setMesasPage(p => Math.max(1, p - 1))}
+                                                disabled={mesasPage === 1}
+                                                className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                            >
+                                                ‹
+                                            </button>
+                                            <button 
+                                                onClick={() => setMesasPage(p => Math.min(mesasTotalPages, p + 1))}
+                                                disabled={mesasPage === mesasTotalPages}
+                                                className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                            >
+                                                ›
+                                            </button>
+                                        </div>
+                                    )}                                          
                                     {/*Grid de mesas */}                          
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
                                         {mesas.map(mesa => (
@@ -1129,22 +1133,24 @@ const Cuentas = () => {
                                         ))}
                                     </div>
                                     {/* Paginacion mesas */}
-                                    <div className="flex items-center justify-center gap-2 pt-4 mb-2">
-                                        <button 
-                                            onClick={() => setMesasPage(p => Math.max(1, p - 1))}
-                                            disabled={mesasPage === 1}
-                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                                        >
-                                            ‹
-                                        </button>
-                                        <button 
-                                            onClick={() => setMesasPage(p => Math.min(mesasTotalPages, p + 1))}
-                                            disabled={mesasPage === mesasTotalPages}
-                                            className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                                        >
-                                            ›
-                                        </button>
-                                    </div>                               
+                                    {mesasTotalPages > 1 && (
+                                        <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                            <button 
+                                                onClick={() => setMesasPage(p => Math.max(1, p - 1))}
+                                                disabled={mesasPage === 1}
+                                                className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                            >
+                                                ‹
+                                            </button>
+                                            <button 
+                                                onClick={() => setMesasPage(p => Math.min(mesasTotalPages, p + 1))}
+                                                disabled={mesasPage === mesasTotalPages}
+                                                className="w-12 h-12 bg-gradient-to-r from-orange-800 to-orange-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
+                                            >
+                                                ›
+                                            </button>
+                                        </div>
+                                    )}                                                                   
                                 </div>
                             )}
 
@@ -1181,12 +1187,13 @@ const Cuentas = () => {
 
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                                     {productos.map(producto => {
-                                        const yaExiste = detalleProductos.find(p => p.id === producto.id) || 
-                                                    editProductos.find(p => p.id === producto.id);
-                                        const cantidadSeleccionada = yaExiste ? 
-                                            (detalleProductos.find(p => p.id === producto.id)?.cantidad || 0) + 
-                                            (editProductos.find(p => p.id === producto.id)?.cantidad || 0) : 0;
-                                        
+                                        // 1. Buscamos el producto en ambos arrays
+                                        const enDetalle = detalleProductos.find(p => p.id === producto.id);
+                                        const enEdit = editProductos.find(p => p.id === producto.id);
+
+                                        // 2. Cantidad: Si quieres mostrar el TOTAL acumulado
+                                        const cantidadSeleccionada = Number(enDetalle?.cantidad || 0) + Number(enEdit?.cantidad || 0);
+                                        const yaExiste = enEdit ? true : false;
                                         return (
                                             <button
                                                 key={producto.id}
