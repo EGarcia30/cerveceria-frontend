@@ -120,15 +120,28 @@ const Compras = () => {
         setSelectedProductos(selectedProductos.filter(p => p.id !== productoId));
     };
 
-    const handleCantidadChange = (productoId, nuevaCantidad) => {
-        if (nuevaCantidad < 1) {
+    const handleCantidadChange = (productoId, valorInput) => {
+        // Si el input está vacío, dejamos que el estado sea un string vacío
+        // Esto permite que el usuario borre el número sin que se ponga un '1' o desaparezca
+        if (valorInput === "") {
+            setSelectedProductos(selectedProductos.map(p => 
+                p.id === productoId ? { ...p, cantidad: "" } : p
+            ));
+            return;
+        }
+
+        const nuevaCantidad = parseFloat(valorInput);
+
+        // Solo eliminamos si el usuario pone explícitamente 0 o un número negativo
+        if (nuevaCantidad <= 0) {
             setSelectedProductos(selectedProductos.filter(p => p.id !== productoId));
         } else {
             setSelectedProductos(selectedProductos.map(p => 
-                p.id === productoId ? { ...p, cantidad: parseFloat(nuevaCantidad) || 1 } : p
+                p.id === productoId ? { ...p, cantidad: nuevaCantidad } : p
             ));
         }
     };
+
 
     const handleCrearCompra = async (e) => {
         e.preventDefault();
@@ -554,7 +567,7 @@ const Compras = () => {
                                     <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-1">
                                         <span className="text-xs sm:text-sm text-gray-500 text-right">Total seleccionados</span>
                                         <div className="text-lg sm:text-2xl font-bold text-emerald-600">
-                                            ${calcularTotal().toLocaleString('es-SV', { minimumFractionDigits: 2 })}
+                                            ${calcularTotal().toLocaleString('es-SV', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </div>
                                     </div>
                                 </form>
@@ -587,9 +600,18 @@ const Compras = () => {
                                                             </button>
                                                             <input
                                                                 type="number"
-                                                                value={producto.cantidad}
-                                                                onChange={(e) => handleCantidadChange(producto.id, parseFloat(e.target.value))}
+                                                                // Permitimos que el valor sea el número o un string vacío
+                                                                value={producto.cantidad} 
+                                                                onChange={(e) => handleCantidadChange(producto.id, e.target.value)}
+                                                                // OnBlur asegura que si el usuario deja vacío y sale del input, se limpie o borre
+                                                                onBlur={() => {
+                                                                    if (producto.cantidad === "" || !producto.cantidad) {
+                                                                        setSelectedProductos(selectedProductos.filter(p => p.id !== producto.id));
+                                                                    }
+                                                                }}
                                                                 className="w-20 p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 text-center font-bold text-base bg-white shadow-sm"
+                                                                min="0"
+                                                                step="any"
                                                             />
                                                             <button
                                                                 onClick={() => handleAumentarCantidad(producto.id)}
@@ -634,38 +656,20 @@ const Compras = () => {
 
                                     {/* PAGINACIÓN */}
                                     {productosPagination.totalPages > 1 && (
-                                        <div className="flex items-center justify-center gap-1 sm:gap-2 pt-4 pb-6">
+                                        <div className="flex items-center justify-end gap-1 sm:gap-2 pt-4 pb-6">
                                             <button
                                                 onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
                                                 disabled={productosPage <= 1}
                                                 className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center text-sm sm:text-base"
                                             >
-                                                ←
-                                            </button>
-                                            <div className="flex gap-1 sm:gap-1 hidden sm:flex">
-                                                {Array.from({ length: Math.min(5, productosPagination.totalPages) }, (_, i) => {
-                                                    const pageNum = Math.min(Math.max(1, productosPage - 2) + i, productosPagination.totalPages);
-                                                    return (
-                                                        <button
-                                                            key={pageNum}
-                                                            onClick={() => setProductosPage(pageNum)}
-                                                            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl font-bold shadow-md flex items-center justify-center transition-all text-xs sm:text-base ${
-                                                                pageNum === productosPage
-                                                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-blue-500/25'
-                                                                    : 'bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 border hover:border-blue-200'
-                                                            }`}
-                                                        >
-                                                            {pageNum}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                                ‹
+                                            </button>                                            
                                             <button
                                                 onClick={() => setProductosPage(Math.min(productosPagination.totalPages, productosPage + 1))}
                                                 disabled={productosPage >= productosPagination.totalPages}
                                                 className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center text-sm sm:text-base"
                                             >
-                                                →
+                                                ›
                                             </button>
                                         </div>
                                     )}
@@ -695,38 +699,20 @@ const Compras = () => {
 
                                     {/* PAGINACIÓN */}
                                     {productosPagination.totalPages > 1 && (
-                                        <div className="flex items-center justify-center gap-1 sm:gap-2 pt-4 pb-6">
+                                        <div className="flex items-center justify-end gap-1 sm:gap-2 pt-4 pb-6">
                                             <button
                                                 onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
                                                 disabled={productosPage <= 1}
                                                 className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center text-sm sm:text-base"
                                             >
-                                                ←
+                                                ‹
                                             </button>
-                                            <div className="flex gap-1 sm:gap-1 hidden sm:flex">
-                                                {Array.from({ length: Math.min(5, productosPagination.totalPages) }, (_, i) => {
-                                                    const pageNum = Math.min(Math.max(1, productosPage - 2) + i, productosPagination.totalPages);
-                                                    return (
-                                                        <button
-                                                            key={pageNum}
-                                                            onClick={() => setProductosPage(pageNum)}
-                                                            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl font-bold shadow-md flex items-center justify-center transition-all text-xs sm:text-base ${
-                                                                pageNum === productosPage
-                                                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-blue-500/25'
-                                                                    : 'bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 border hover:border-blue-200'
-                                                            }`}
-                                                        >
-                                                            {pageNum}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
                                             <button
                                                 onClick={() => setProductosPage(Math.min(productosPagination.totalPages, productosPage + 1))}
                                                 disabled={productosPage >= productosPagination.totalPages}
                                                 className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center text-sm sm:text-base"
                                             >
-                                                →
+                                                ›
                                             </button>
                                         </div>
                                     )}
