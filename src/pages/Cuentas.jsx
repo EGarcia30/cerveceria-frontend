@@ -28,7 +28,7 @@ const Cuentas = () => {
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedCuenta, setSelectedCuenta] = useState(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
-    const [editForm, setEditForm] = useState({ cliente: '', mesa_id: '' });
+    const [editForm, setEditForm] = useState({ cliente: '', tipo_cuenta: '' , mesa_id: '', mesa_original: '' });
     const [detalleProductos, setDetalleProductos] = useState([]); // Productos originales editables
     const [editProductos, setEditProductos] = useState([]); // Productos nuevos
     const [creatingCuentaDetalle, setCreatingCuentaDetalle] = useState(false);
@@ -179,6 +179,16 @@ const Cuentas = () => {
         setMesasPage(1)
     };
 
+    const handleEditTipoChange = (e) => {
+        const value = e.target.value;
+        setEditForm(prev => ({
+            ...prev,
+            tipo_cuenta: value, mesa_id: value !== 'mesa' ? null : prev.mesa_original 
+        }));
+    };
+
+
+
     const handleMesaSelect = (mesaId) => {
         setCreateForm({ ...createForm, mesa_id: mesaId });
     };
@@ -328,7 +338,7 @@ const Cuentas = () => {
     const handleAbrirDetalle = useCallback(async (cuenta) => {
         // Inicializar estados
         setSelectedCuenta(cuenta);
-        setEditForm({ cliente: cuenta.cliente, tipo_cuenta: cuenta.tipo_cuenta, mesa_id: cuenta.mesa_id || '' });
+        setEditForm({ cliente: cuenta.cliente, tipo_cuenta: cuenta.tipo_cuenta, mesa_id: cuenta.mesa_id || '', mesa_original: cuenta.mesa_id || '' });
         setDetalleProductos(cuenta.detalles?.map(d => ({ 
             ...d, 
             cantidad: d.cantidad_vendida || d.cantidad || 1 
@@ -592,24 +602,27 @@ const Cuentas = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {cuentas.map(cuenta => (
                 <div key={cuenta.id} className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:-translate-y-1">
-                    <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-xl font-bold text-gray-900 line-clamp-1">Cuenta #{cuenta.id}</h3>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        cuenta.estado === 'pagado' 
-                        ? 'bg-emerald-100 text-emerald-800' 
-                        : 'bg-amber-100 text-amber-800'
-                    }`}>
-                        {cuenta.estado === 'pagado' ? '✅ Pagada' : '⏳ Pendiente'}
-                    </span>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-gray-900 line-clamp-1">Cuenta #{cuenta.id}</h3>
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                            cuenta.estado === 'pagado' 
+                            ? 'bg-emerald-100 text-emerald-800' 
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                            {cuenta.estado === 'pagado' ? '✅ Pagada' : '⏳ Pendiente'}
+                        </span>
                     </div>
                     
                     <div className="space-y-2 mb-6">
-                    <p className="text-sm text-gray-600"><strong>Cliente:</strong> {cuenta.cliente}</p>
-                    {cuenta.mesa_id && (
-                        <p className="text-sm text-gray-600">
-                        <strong>🪑 Mesa:</strong> {cuenta.numero_mesa}
+                        <p className="inline text-lg text-gray-600 font-medium">Cliente: 
+                            <p className='inline text-lg font-bold text-gray-600 ms-2'>{cuenta.cliente.toUpperCase()}</p>
                         </p>
-                    )}
+                        {cuenta.mesa_id && (
+                            <p className="text-lg text-gray-600 font-medium">
+                            🪑 Mesa: 
+                            <p className='inline text-lg font-bold text-gray-600 ms-2'>{cuenta.numero_mesa}</p>
+                            </p>
+                        )}
                     </div>
 
                     <div className="text-2xl lg:text-3xl font-bold text-emerald-600 mb-6 bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-xl">
@@ -648,6 +661,55 @@ const Cuentas = () => {
                 ))}
             </div>
 
+            {/* PAGINACIÓN CUENTAS */}
+            {pagination.totalPages > 1 && (
+                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-md lg:shadow-lg mb-8 lg:mb-12 flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4">
+                <button 
+                    className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page <= 1}
+                >
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+
+                <div className="hidden sm:flex gap-1 lg:gap-2 justify-center min-w-[120px] lg:min-w-[160px]">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                    const startPage = Math.max(1, page - 2);
+                    const pageNum = Math.min(startPage + i, pagination.totalPages);
+                    return (
+                        <button
+                        key={pageNum}
+                        className={`w-10 h-10 sm:w-11 sm:h-11 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl lg:rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-sm lg:shadow-md flex items-center justify-center text-sm lg:text-base flex-shrink-0 ${
+                            pageNum === page 
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700 border border-gray-200 hover:border-blue-200'
+                        }`}
+                        onClick={() => setPage(pageNum)}
+                        >
+                        {pageNum}
+                        </button>
+                    );
+                    })}
+                </div>
+
+                <button 
+                    className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
+                    onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
+                    disabled={page >= pagination.totalPages}
+                >
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+
+                <div className="hidden sm:block text-gray-700 font-semibold bg-gray-100 px-4 py-2 lg:px-6 lg:py-3 rounded-xl lg:rounded-2xl border border-gray-200 text-sm lg:text-base whitespace-nowrap flex-shrink-0">
+                    Pg. <span className="text-blue-600 font-bold">{page}</span> de <span className="text-purple-600 font-bold">{pagination.totalPages}</span>
+                </div>
+                </div>
+            )}
+
             {cuentas.length === 0 && !loading && (
                 <div className="text-center py-20">
                 <div className="text-6xl mb-4">💸</div>
@@ -672,10 +734,10 @@ const Cuentas = () => {
                 <div className="w-full max-w-6xl max-h-[95vh] flex flex-col bg-white rounded-3xl sm:rounded-[2rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
                     
                     {/* HEADER PEQUEÑO FIJO */}
-                    <div className="p-4 sm:p-6 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-green-50 flex-shrink-0">
+                    <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-green-50 flex-shrink-0">
                         <div className="flex justify-between items-center">
                             <div>
-                                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Nueva Cuenta</h2>
+                                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Nueva Cuenta</h2>
                                 <p className="text-base text-gray-600">
                                     Total: <span className="text-xl font-bold text-emerald-600">${formatDinero(calcularTotal())}</span>
                                     {selectedProductos.length > 0 && ` (${selectedProductos.length} productos)`}
@@ -688,8 +750,9 @@ const Cuentas = () => {
                             </button>
                         </div>
 
-                        {/* FORM CABECERA COMPACTA */}
-                        <form className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                        {/* FORM CABECERA */}
+                        <form className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                            {/* Contenedor Cliente */}
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Cliente *</label>
                                 <input
@@ -700,21 +763,37 @@ const Cuentas = () => {
                                     placeholder="Nombre del cliente"
                                 />
                             </div>
+                             {/* Contenedor Tipo de Cuenta */}
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo Cuenta</label>
-                                <select
-                                    className="w-full p-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
-                                    value={createForm.tipo_cuenta}
-                                    onChange={handleTipoChange}
-                                >
-                                    <option value="individual">👤 Individual</option>
-                                    <option value="mesa">🪑 Mesa</option>
-                                </select>
-                            </div>
-                            <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-1 self-end">
-                                <span className="text-sm text-gray-500 text-right">Productos seleccionados</span>
-                                <div className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-600">
-                                    {selectedProductos.length}
+                                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                    Tipo de Cuenta
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTipoChange({ target: { value: 'individual' } })}
+                                        className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all duration-200 ${
+                                            createForm.tipo_cuenta === 'individual'
+                                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
+                                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <span className="text-lg leading-none">👤</span>
+                                        <span className="font-medium">Individual</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTipoChange({ target: { value: 'mesa' } })}
+                                        className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all duration-200 ${
+                                            createForm.tipo_cuenta === 'mesa'
+                                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
+                                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <span className="text-lg leading-none">🪑</span>
+                                        <span className="font-medium">Mesa</span>
+                                    </button>
                                 </div>
                             </div>
                         </form>
@@ -729,7 +808,7 @@ const Cuentas = () => {
                                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
                                 {/* Paginacion mesas */}
                                 { mesasTotalPages > 1 && (
-                                    <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                    <div className="flex items-center justify-end gap-2 pb-4 mb-2">
                                         <button 
                                             onClick={() => setMesasPage(p => Math.max(1, p - 1))}
                                             disabled={mesasPage === 1}
@@ -774,7 +853,7 @@ const Cuentas = () => {
                                 </div>
                                 {/* Paginacion mesas */}
                                 {mesasTotalPages > 1 && (
-                                    <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                    <div className="flex items-center justify-end gap-2 pt-4 mb-2">
                                         <button 
                                             onClick={() => setMesasPage(p => Math.max(1, p - 1))}
                                             disabled={mesasPage === 1}
@@ -808,7 +887,7 @@ const Cuentas = () => {
 
                             {/* PAGINACIÓN SUPERIOR */}
                             {productosPagination.totalPages > 1 && (
-                                <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                <div className="flex items-center justify-end gap-2 pb-4 mb-2">
                                     <button
                                         onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
                                         disabled={productosPage === 1}
@@ -850,12 +929,13 @@ const Cuentas = () => {
                                             <div className="font-bold text-sm sm:text-base line-clamp-2 group-hover:text-emerald-700 leading-tight h-12 z-10 relative pr-8 sm:pr-0">
                                                 {producto.descripcion}
                                             </div>
-                                            <div className="text-xs text-gray-600 z-10 relative pr-8 sm:pr-0">{producto.presentacion}</div>
+                                            <div className="text-sm sm:text-base text-gray-600 z-10 relative pr-8 sm:pr-0">{producto.presentacion}</div>
                                             <div className="font-bold text-emerald-600 text-lg sm:text-xl w-full text-left z-10 relative pr-8 sm:pr-0">
                                                 ${formatDinero(producto.precio_venta || producto.precioventa)}
                                             </div>
                                             <div className="text-xs text-gray-500 flex items-center gap-1 z-10 relative pr-8 sm:pr-0">
-                                                Stock <span className="font-semibold">{producto.cantidad_disponible}</span>
+                                                Stock 
+                                                <span className="text-base font-semibold">{producto.cantidad_disponible}</span>
                                             </div>
                                         </button>
                                     );
@@ -864,7 +944,7 @@ const Cuentas = () => {
 
                             {/*paginacion crear cuenta*/}
                             {productosPagination.totalPages > 1 && (
-                                <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                <div className="flex items-center justify-end gap-2 pt-4 mb-2">
                                     <button
                                         onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
                                         disabled={productosPage === 1}
@@ -895,11 +975,11 @@ const Cuentas = () => {
                                             {/* COLUMNA IZQUIERDA - Descripción + Chip */}
                                             <div className="flex-1 mb-6 lg:mb-0 lg:mr-6">
                                                 <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
-                                                <p className="text-sm text-gray-600 mt-1">{producto.presentacion}</p>
+                                                <p className="text-base text-gray-600 mt-1">{producto.presentacion}</p>
                                                 
                                                 {/* CHIP PROMOCIÓN ACTIVA */}
                                                 {producto.promocion_activa && (
-                                                    <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                                    <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-sm font-semibold bg-emerald-100 text-emerald-800">
                                                         🎉 {producto.promocion_activa.nombre_promocion}{' '}
                                                         <span className="font-normal">
                                                             ({formatDinero(producto.promocion_activa.nuevo_precio_venta)} c/u)
@@ -914,7 +994,7 @@ const Cuentas = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => handlePromocionChange(producto.id, null)}
-                                                        className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                        className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-base font-medium transition-all shadow-md flex-shrink-0 ${
                                                             !producto.promocion_activa
                                                                 ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/50 scale-105'
                                                                 : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:shadow-lg'
@@ -927,7 +1007,7 @@ const Cuentas = () => {
                                                             key={promo.id}
                                                             type="button"
                                                             onClick={() => handlePromocionChange(producto.id, promo)}
-                                                            className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                            className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-base font-medium transition-all shadow-md flex-shrink-0 ${
                                                                 producto.promocion_activa?.id === promo.id
                                                                     ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-500/50 scale-105'
                                                                     : 'bg-orange-100 text-orange-800 hover:bg-orange-200 hover:shadow-lg'
@@ -1018,14 +1098,14 @@ const Cuentas = () => {
         {/* ✅ MODAL DETALLE */}
         {showDetailModal && selectedCuenta && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] animate-in fade-in-0 zoom-in-95 duration-200">
-                <div className="fixed inset-0 z-[70] p-4 sm:p-6 flex items-center justify-center">
+                <div className="fixed inset-0 z-[70] p-4 flex items-center justify-center">
                     <div className="w-full max-w-6xl max-h-[95vh] flex flex-col bg-white rounded-3xl sm:rounded-[2rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
                         
                         {/* HEADER PEQUEÑO FIJO */}
                         <div className="p-4 sm:p-6 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                                    <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                                         Editar Cuenta #{selectedCuenta.id}
                                     </h2>
                                     <p className="text-base text-gray-600">
@@ -1043,7 +1123,7 @@ const Cuentas = () => {
                             </div>
 
                             {/* FORM CABECERA COMPACTA */}
-                            <form className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                            <form className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Cliente *</label>
                                     <input
@@ -1054,27 +1134,37 @@ const Cuentas = () => {
                                         placeholder="Nombre del cliente"
                                     />
                                 </div>
+                                {/* 2. Botones de Tipo de Cuenta */}
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo Cuenta</label>
-                                    <select
-                                        className="w-full p-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                                        value={editForm.tipo_cuenta || 'individual'}
-                                        onChange={(e) => {
-                                            setEditForm({ 
-                                                ...editForm, 
-                                                tipo_cuenta: e.target.value,
-                                                mesa_id: e.target.value === 'individual' ? null : editForm.mesa_id
-                                            });
-                                        }}
-                                    >
-                                        <option value="individual">👤 Individual</option>
-                                        <option value="mesa">🪑 Mesa</option>
-                                    </select>
-                                </div>
-                                <div className="flex flex-col sm:flex-col-reverse sm:items-end md:items-end gap-1 self-end">
-                                    <span className="text-sm text-gray-500 text-right">Productos totales</span>
-                                    <div className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-600">
-                                        {detalleProductos.length + editProductos.length}
+                                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                        Tipo de Cuenta
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleEditTipoChange({ target: { value: 'individual' } })}
+                                            className={`flex items-center justify-center gap-2 py-3 px-2 rounded-xl border-2 transition-all duration-200 ${
+                                                editForm.tipo_cuenta === 'individual'
+                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm ring-1 ring-emerald-500'
+                                                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <span className="text-base">👤</span>
+                                            <span className="font-medium text-sm">Individual</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleEditTipoChange({ target: { value: 'mesa' } })}
+                                            className={`flex items-center justify-center gap-2 py-3 px-2 rounded-xl border-2 transition-all duration-200 ${
+                                                editForm.tipo_cuenta === 'mesa'
+                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm ring-1 ring-emerald-500'
+                                                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <span className="text-base">🪑</span>
+                                            <span className="font-medium text-sm">Mesa</span>
+                                        </button>
                                     </div>
                                 </div>
                             </form>
@@ -1089,7 +1179,7 @@ const Cuentas = () => {
                                     <h3 className="text-xl font-bold mb-6 flex items-center gap-2">🪑 Seleccionar Mesa</h3>
                                     {/* Paginacion mesas */}
                                     {mesasTotalPages > 1 && (
-                                        <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                        <div className="flex items-center justify-end gap-2 pb-4 mb-2">
                                             <button 
                                                 onClick={() => setMesasPage(p => Math.max(1, p - 1))}
                                                 disabled={mesasPage === 1}
@@ -1134,7 +1224,7 @@ const Cuentas = () => {
                                     </div>
                                     {/* Paginacion mesas */}
                                     {mesasTotalPages > 1 && (
-                                        <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                        <div className="flex items-center justify-end gap-2 pt-4 mb-2">
                                             <button 
                                                 onClick={() => setMesasPage(p => Math.max(1, p - 1))}
                                                 disabled={mesasPage === 1}
@@ -1167,7 +1257,7 @@ const Cuentas = () => {
 
                                 {/* PAGINACIÓN SUPERIOR */}
                                 {productosPagination.totalPages > 1 && (
-                                    <div className="flex items-center justify-center gap-2 pb-4 mb-2">
+                                    <div className="flex items-center justify-end gap-2 pb-4 mb-2">
                                         <button
                                             onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
                                             disabled={productosPage === 1}
@@ -1212,12 +1302,12 @@ const Cuentas = () => {
                                                 <div className="font-bold text-sm sm:text-base line-clamp-2 group-hover:text-blue-700 leading-tight h-12 z-10 relative pr-8 sm:pr-0">
                                                     {producto.descripcion}
                                                 </div>
-                                                <div className="text-xs  text-gray-600 z-10 relative pr-8 sm:pr-0">{producto.presentacion}</div>
+                                                <div className="text-sm sm:text-base text-gray-600 z-10 relative pr-8 sm:pr-0">{producto.presentacion}</div>
                                                 <div className="font-bold text-emerald-600 text-lg sm:text-xl w-full text-left z-10 relative pr-8 sm:pr-0">
                                                     ${formatDinero(producto.precio_venta)}
                                                 </div>
                                                 <div className="text-xs text-gray-500 flex items-center gap-1 z-10 relative pr-8 sm:pr-0">
-                                                    Stock <span className="font-semibold">{producto.cantidad_disponible}</span>
+                                                    Stock <span className="text-base font-semibold">{producto.cantidad_disponible}</span>
                                                 </div>
                                             </button>
                                         );
@@ -1226,7 +1316,7 @@ const Cuentas = () => {
 
                                 {/* PAGINACIÓN*/}
                                 {productosPagination.totalPages > 1 && (
-                                    <div className="flex items-center justify-center gap-2 pt-4 mb-2">
+                                    <div className="flex items-center justify-end gap-2 pt-4 mb-2">
                                         <button
                                             onClick={() => setProductosPage(Math.max(1, productosPage - 1))}
                                             disabled={productosPage === 1}
@@ -1257,9 +1347,9 @@ const Cuentas = () => {
                                             <div key={producto.id} className="bg-white/80 p-5 rounded-2xl border-l-4 border-emerald-400 shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row lg:items-center lg:gap-6">
                                                 <div className="flex-1 mb-6 lg:mb-0 lg:mr-6">
                                                     <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
-                                                    <p className="text-sm text-gray-600 mt-1">{producto.presentacion}</p>
+                                                    <p className="text-base text-gray-600 mt-1">{producto.presentacion}</p>
                                                     {producto.promocion_activa && (
-                                                        <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                                        <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-sm font-semibold bg-emerald-100 text-emerald-800">
                                                             🎉 {producto.promocion_activa.nombre_promocion}{' '}
                                                             <span className="font-normal">({formatDinero(producto.promocion_activa.nuevo_precio_venta)} c/u)</span>
                                                         </p>
@@ -1271,7 +1361,7 @@ const Cuentas = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => handlePromocionChangeEdit(producto.id, null)}
-                                                            className={`px-3 py-2 m-1.5 md:m-0  rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                            className={`px-3 py-2 m-1.5 md:m-0  rounded-full text-base font-medium transition-all shadow-md flex-shrink-0 ${
                                                                 !producto.promocion_activa
                                                                     ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/50 scale-105'
                                                                     : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:shadow-lg'
@@ -1284,7 +1374,7 @@ const Cuentas = () => {
                                                                 key={promo.id}
                                                                 type="button"
                                                                 onClick={() => handlePromocionChangeEdit(producto.id, promo)}
-                                                                className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                                className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-base font-medium transition-all shadow-md flex-shrink-0 ${
                                                                     producto.promocion_activa?.id == promo.id
                                                                         ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-500/50 scale-105'
                                                                         : 'bg-orange-100 text-orange-800 hover:bg-orange-200 hover:shadow-lg'
@@ -1335,9 +1425,9 @@ const Cuentas = () => {
                                             <div key={producto.id} className="bg-white/80 p-5 rounded-2xl border-l-4 border-orange-400 shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row lg:items-center lg:gap-6">
                                                 <div className="flex-1 mb-6 lg:mb-0 lg:mr-6">
                                                     <p className="font-bold text-lg text-gray-900 line-clamp-2">{producto.descripcion}</p>
-                                                    <p className="text-sm text-gray-600 mt-1">{producto.presentacion}</p>
+                                                    <p className="text-base text-gray-600 mt-1">{producto.presentacion}</p>
                                                     {producto.promocion_activa && (
-                                                        <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                                                        <p className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-sm font-semibold bg-orange-100 text-orange-800">
                                                             🎉 {producto.promocion_activa.nombre_promocion}{' '}
                                                             <span className="font-normal">({formatDinero(producto.promocion_activa.nuevo_precio_venta)} c/u)</span>
                                                         </p>
@@ -1349,7 +1439,7 @@ const Cuentas = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => handlePromocionChangeDetalle(String(producto.id), null)}
-                                                            className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                            className={`px-3 py-2 m-1.5 md:m-0 rounded-full text-base font-medium transition-all shadow-md flex-shrink-0 ${
                                                                 !producto.promocion_activa 
                                                                     ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/50 scale-105'
                                                                     : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:shadow-lg'
@@ -1362,7 +1452,7 @@ const Cuentas = () => {
                                                                 key={promo.id}
                                                                 type="button"
                                                                 onClick={() => handlePromocionChangeDetalle(String(producto.id), promo)}
-                                                                className={`px-3 py-2 m-1.5 md:m-0  rounded-full text-xs font-medium transition-all shadow-md flex-shrink-0 ${
+                                                                className={`px-3 py-2 m-1.5 md:m-0  rounded-full text-base font-medium transition-all shadow-md flex-shrink-0 ${
                                                                     producto.promocion_activa?.id == promo.id
                                                                         ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-500/50 scale-105'
                                                                         : 'bg-orange-100 text-orange-800 hover:bg-orange-200 hover:shadow-lg'

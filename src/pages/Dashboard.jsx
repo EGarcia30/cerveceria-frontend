@@ -43,6 +43,13 @@ const Dashboard = () => {
         cargarDashboard('hoy'); // Inicial: hoy
     }, []);
 
+    const formatDinero = (numero) => {
+        return Number(numero ?? 0).toLocaleString('es-SV', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+        });
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-emerald-50">
@@ -100,7 +107,7 @@ const Dashboard = () => {
                             <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">GASTO</span>
                         </div>
                         <p className="text-3xl md:text-4xl font-black text-gray-900 mb-1">
-                            ${dashboard?.ganancias?.costos?.toLocaleString('es-SV', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || '0.00'}
+                            ${formatDinero(dashboard?.ganancias?.costos) || '0.00'}
                         </p>
                         <p className="text-sm text-gray-600">Inversión en productos ({periodo})</p>
                     </div>
@@ -114,7 +121,7 @@ const Dashboard = () => {
                             <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">VENTAS</span>
                         </div>
                         <p className="text-3xl md:text-4xl font-black text-gray-900 mb-1">
-                            ${dashboard?.ventasPeriodo?.ingresos_periodo?.toLocaleString('es-SV', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || '0.00'}
+                            ${formatDinero(dashboard?.ventasPeriodo?.ingresos_periodo) || '0.00'}
                         </p>
                         <p className="text-sm text-gray-600">{dashboard?.ventasPeriodo?.ventas_periodo || 0} ventas ({periodo})</p>
                     </div>
@@ -130,7 +137,7 @@ const Dashboard = () => {
                         <p className={`text-3xl md:text-4xl font-black mb-1 ${
                             dashboard?.ganancias?.ganancia >= 0 ? 'text-emerald-600' : 'text-red-600'
                         }`}>
-                            ${dashboard?.ganancias?.ganancia?.toLocaleString('es-SV', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || '0.00'}
+                            ${formatDinero(dashboard?.ganancias?.ganancia) || '0.00'}
                         </p>
                         <p className="text-sm text-gray-600">
                             {dashboard?.ganancias?.ganancia >= 0 ? '💰 Ganancia' : '📉 Pérdida'} ({periodo})
