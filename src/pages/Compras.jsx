@@ -681,7 +681,6 @@ const Compras = () => {
                                                 key={producto.id}
                                                 onClick={() => handleAgregarProducto(producto)}
                                                 className="group p-3 sm:p-4 border-2 border-gray-200 rounded-xl hover:border-emerald-400 hover:shadow-md transition-all duration-200 hover:scale-105 bg-white disabled:opacity-50 disabled:cursor-not-allowed h-full flex flex-col items-start"
-                                                disabled={producto.cantidad_disponible <= 0}
                                             >
                                                 <div className="font-semibold text-xs sm:text-sm mb-1 line-clamp-2 group-hover:text-emerald-700 leading-tight">
                                                     {producto.descripcion}
