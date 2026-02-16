@@ -1,274 +1,355 @@
-// App.jsx - BREAKPOINT 1195px
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+// App.jsx - COMPLETO CON GASTOS OPERATIVOS AGREGADO
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import Productos from './pages/Productos';
 import Compras from "./pages/Compras";
 import Cuentas from "./pages/Cuentas";
+import GastosOperativos from "./pages/GastosOperativos";  // ✅ NUEVO IMPORT
 import Dashboard from "./pages/Dashboard";
 import Mesas from "./pages/Mesas";
 import Historial from "./pages/Historial";
 import Promociones from "./pages/Promociones";
+import Usuarios from "./pages/Usuarios";  
+import Login from "./pages/Login";
 
 function App() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [user, setUser] = useState(null);
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    
+    if (userData === 'undefined' || userData === 'null') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setLoading(false);
+      return;
+    }
+    
+    if (token && userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        if (parsedUser?.nombre) {
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        localStorage.clear();
+      }
+    }
+    setLoading(false);
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setIsAuthenticated(false);
+    setUser(null);
+    setShowUserDropdown(false);
+    setIsMobileMenuOpen(false);
   };
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white">
+        <div className="text-xl font-semibold text-gray-600 animate-pulse">Cargando sistema...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <Router>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-white">
-        {/* Navbar RESPONSIVA 1195px */}
+        {/* NAVBAR PRINCIPAL */}
         <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16 items-center">
-              {/* Logo */}
-              <div className="flex items-center">
-                <NavLink 
-                  to="/" 
-                  className="flex items-center space-x-2 text-xl sm:text-2xl font-bold hover:scale-105 transition-all duration-300"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <span>🍻</span>
-                  <span className="hidden md:inline bg-gradient-to-r from-blue-600 to-purple-700 bg-clip-text text-transparent">Las Toñitas</span>
+            {/* FILA PRINCIPAL */}
+            <div className="flex items-center justify-between h-16">
+              {/* LOGO */}
+              <NavLink 
+                to="/" 
+                className="flex items-center space-x-2 text-xl sm:text-2xl font-bold hover:scale-105 transition-all duration-300"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <span>🍻</span>
+                <span className="hidden md:inline bg-gradient-to-r from-blue-600 to-purple-700 bg-clip-text text-transparent">Las Toñitas</span>
+              </NavLink>
+
+              {/* LINKS DESKTOP HORIZONTAL */}
+              <div className="hidden md:flex items-center space-x-1">
+                <NavLink to="/dashboard" className={({ isActive }) => 
+                  `px-3 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-emerald-600 to-blue-700 text-white shadow-lg scale-105' 
+                      : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50'
+                  }`}>
+                  📊
+                </NavLink>
+
+                <NavLink to="/productos" className={({ isActive }) => 
+                  `px-3 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-700 text-white shadow-lg scale-105' 
+                      : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'
+                  }`}>
+                  📦
+                </NavLink>
+
+                <NavLink to="/mesas" className={({ isActive }) => 
+                  `px-3 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-700 hover:text-purple-600 hover:bg-purple-50'
+                  }`}>
+                  🪑
+                </NavLink>
+
+                <NavLink to="/compras" className={({ isActive }) => 
+                  `px-3 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-700 hover:text-orange-600 hover:bg-orange-50'
+                  }`}>
+                  🛒
+                </NavLink>
+
+                <NavLink to="/promociones" className={({ isActive }) => 
+                  `px-3 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-700 hover:text-pink-600 hover:bg-pink-50'
+                  }`}>
+                  🎉
+                </NavLink>
+
+                <NavLink to="/historial" className={({ isActive }) => 
+                  `px-3 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-700 hover:text-amber-600 hover:bg-amber-50'
+                  }`}>
+                  📋
+                </NavLink>
+
+                <NavLink to="/cuentas" className={({ isActive }) => 
+                  `px-3 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50'
+                  }`}>
+                  💰
+                </NavLink>
+
+                {/* ✅ GASTOS OPERATIVOS - DESKTOP */}
+                <NavLink to="/gastos-operativos" className={({ isActive }) => 
+                  `px-3 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-red-500 to-orange-600 text-white shadow-lg scale-105' 
+                      : 'text-gray-700 hover:text-red-600 hover:bg-red-50'
+                  }`}>
+                  💸
                 </NavLink>
               </div>
-              
-              {/* Botón hamburguesa - HASTA 1194px ✅ CAMBIADO */}
-              <div className="max-[1194px]:flex hidden">
+
+              {/* USER + HAMBURGUESA - MISMA FILA */}
+              <div className="flex items-center space-x-2">
+                {/* DROPDOWN USUARIO */}
+                <div className="relative inline-block">
+                  <button
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    className="flex items-center space-x-2 bg-gradient-to-r from-emerald-50 to-blue-50 px-3 py-2 rounded-xl border border-emerald-200 hover:shadow-md hover:shadow-emerald-500/25 transition-all duration-300 group"
+                  >
+                    <div className="w-9 h-9 bg-gradient-to-r from-emerald-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:scale-110 transition-transform">
+                      {user?.nombre?.charAt(0)?.toUpperCase() || 'U'}
+                    </div>
+                    <div className="hidden sm:block min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm truncate">{user?.nombre}</p>
+                    </div>
+                    <svg className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${showUserDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {/* DROPDOWN MENU - ALINEADO DERECHA Z-50 */}
+                  {showUserDropdown && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 py-3 z-50 animate-in slide-in-from-top-2 duration-200 origin-top-right">
+                      {/* Perfil */}
+                      <div className="px-5 py-4 border-b border-gray-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                            {user?.nombre?.charAt(0)?.toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-900 text-lg truncate">{user?.nombre}</p>
+                            <p className={`text-sm font-semibold ${
+                              user?.rol === 'admin' ? 'text-red-600' : 
+                              user?.rol === 'cajero' ? 'text-emerald-600' : 'text-indigo-600'
+                            }`}>
+                              {user?.rol === 'admin' ? '👑 Administrador' : user?.rol === 'cajero' ? '💰 Cajero' : '👤 Personal'}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Gestión Usuarios */}
+                      <NavLink
+                        to="/usuarios"
+                        className={({ isActive }) => 
+                          `block px-5 py-4 w-full text-left font-semibold transition-all duration-300 hover:bg-indigo-50 border-l-4 border-indigo-500 ${
+                            isActive ? 'bg-indigo-100 shadow-inner' : 'hover:shadow-md'
+                          }`
+                        }
+                        onClick={() => setShowUserDropdown(false)}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span className="text-xl">👥</span>
+                          <span>Gestión de Usuarios</span>
+                        </div>
+                      </NavLink>
+
+                      {/* Separador */}
+                      <div className="px-5 my-1">
+                        <div className="w-full h-px bg-gradient-to-r from-gray-200 to-transparent"></div>
+                      </div>
+
+                      {/* Logout */}
+                      <button
+                        onClick={logout}
+                        className="w-full text-left px-5 py-4 font-semibold text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-300 flex items-center space-x-3 group hover:shadow-md"
+                      >
+                        <span className="text-xl">🚪</span>
+                        <span>Cerrar Sesión</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* HAMBURGUESA MOBILE */}
                 <button 
-                  onClick={toggleMenu}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  aria-label="Toggle menu"
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="md:hidden p-2 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  aria-label="Abrir menú"
                 >
-                  <svg className={`w-6 h-6 text-gray-700 transition-transform duration-500 ease-in-out ${isMenuOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-6 h-6 text-gray-700 transition-transform duration-300 ${isMobileMenuOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                 </button>
               </div>
-              
-              {/* Menu Desktop - DESDE 1195px ✅ CAMBIADO */}
-              <div className="max-[1194px]:hidden flex items-center space-x-1">
-                <NavLink 
-                  to="/dashboard" 
-                  className={({ isActive }) => 
-                    `px-4 py-3 [1195px]:px-6 [1195px]:py-3 rounded-2xl font-semibold transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-emerald-600 to-blue-700 text-white shadow-lg border-emerald-500' 
-                        : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 border-transparent hover:border-emerald-300'
-                    }`}
-                >
-                  📊 Dashboard
-                </NavLink>
-                
-                <NavLink 
-                  to="/productos" 
-                  className={({ isActive }) => 
-                    `px-4 py-3 [1195px]:px-6 [1195px]:py-3 rounded-2xl font-semibold transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-700 text-white shadow-lg shadow-blue-500/25 scale-105' 
-                        : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'
-                    }`}
-                >
-                  📦 Productos
-                </NavLink>
-                
-                <NavLink 
-                  to="/mesas"
-                  className={({ isActive }) => 
-                    `px-4 py-3 [1195px]:px-6 [1195px]:py-3 rounded-2xl font-semibold transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg shadow-purple-500/25 scale-105' 
-                        : 'text-gray-700 hover:text-purple-600 hover:bg-purple-50'
-                    }`}
-                >
-                  🪑 Mesas
-                </NavLink>
-                
-                <NavLink 
-                  to="/compras" 
-                  className={({ isActive }) => 
-                    `px-4 py-3 [1195px]:px-6 [1195px]:py-3 rounded-2xl font-semibold transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-500/25 scale-105' 
-                        : 'text-gray-700 hover:text-orange-600 hover:bg-orange-50'
-                    }`}
-                >
-                  🛒 Compras
-                </NavLink>
-
-                <NavLink 
-                  to="/promociones" 
-                  className={({ isActive }) => 
-                    `px-4 py-3 [1195px]:px-6 [1195px]:py-3 rounded-2xl font-semibold transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg shadow-pink-500/25 scale-105' 
-                        : 'text-gray-700 hover:text-pink-600 hover:bg-pink-50'
-                    }`}
-                >
-                  🎉 Promociones
-                </NavLink>
-
-                <NavLink 
-                  to="/historial"
-                  className={({ isActive }) => 
-                    `px-4 py-3 [1195px]:px-6 [1195px]:py-3 rounded-2xl font-semibold transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 scale-105' 
-                        : 'text-gray-700 hover:text-amber-600 hover:bg-amber-50'
-                    }`}
-                >
-                  📋 Historial
-                </NavLink>
-                
-                <NavLink 
-                  to="/cuentas" 
-                  className={({ isActive }) => 
-                    `px-4 py-3 [1195px]:px-6 [1195px]:py-3 rounded-2xl font-semibold transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 scale-105' 
-                        : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50'
-                    }`}
-                >
-                  💰 Cuentas
-                </NavLink>
-              </div>
-            </div>
-          </div>
-          
-          {/* Menu Móvil - ANIMACIÓN SUAVE ✅ MEJORADA */}
-          <div className={`max-[1194px]:flex hidden overflow-hidden transition-all duration-700 ease-out ${
-            isMenuOpen 
-              ? 'max-h-[500px] opacity-100 translate-y-0' 
-              : 'max-h-0 opacity-0 -translate-y-2'
-          }`}>
-            <div className="bg-white border-t border-gray-200 px-4 py-4 space-y-2 w-full">
-              <NavLink 
-                to="/dashboard" 
-                className={({ isActive }) => 
-                  `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
-                    isActive 
-                      ? 'bg-gradient-to-r from-emerald-600 to-blue-700 text-white shadow-lg border-emerald-500' 
-                      : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 border-transparent hover:border-emerald-300'
-                  }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                📊 Dashboard
-              </NavLink>
-
-              <NavLink 
-                to="/productos" 
-                className={({ isActive }) => 
-                  `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
-                    isActive 
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-700 text-white shadow-lg border-blue-500' 
-                      : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50 border-transparent hover:border-blue-300'
-                  }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                📦 Productos
-              </NavLink>
-              
-              <NavLink 
-                to="/mesas"
-                className={({ isActive }) => 
-                  `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
-                    isActive 
-                      ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg border-purple-500' 
-                      : 'text-gray-700 hover:text-purple-600 hover:bg-purple-50 border-transparent hover:border-purple-300'
-                  }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                🪑 Mesas
-              </NavLink>
-              
-              <NavLink 
-                to="/compras" 
-                className={({ isActive }) => 
-                  `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
-                    isActive 
-                      ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg border-orange-500' 
-                      : 'text-gray-700 hover:text-orange-600 hover:bg-orange-50 border-transparent hover:border-orange-300'
-                  }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                🛒 Compras
-              </NavLink>
-
-              <NavLink 
-                to="/promociones" 
-                className={({ isActive }) => 
-                  `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
-                    isActive 
-                      ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg border-pink-500' 
-                      : 'text-gray-700 hover:text-pink-600 hover:bg-pink-50 border-transparent hover:border-pink-300'
-                  }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                🎉 Promociones
-              </NavLink>
-
-              <NavLink 
-                to="/historial"
-                className={({ isActive }) => 
-                  `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
-                    isActive 
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg border-amber-500' 
-                      : 'text-gray-700 hover:text-amber-600 hover:bg-amber-50 border-transparent hover:border-amber-300'
-                  }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                📋 Historial
-              </NavLink>
-
-              <NavLink 
-                to="/cuentas" 
-                className={({ isActive }) => 
-                  `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
-                    isActive 
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg border-emerald-500' 
-                      : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 border-transparent hover:border-emerald-300'
-                  }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                💰 Cuentas
-              </NavLink>
             </div>
           </div>
         </nav>
 
-        {/* Contenido */}
+        {/* MENU MÓVIL - HEIGHT AUTOMÁTICO Z-40 */}
+        <div className={`md:hidden transition-all duration-300 ${
+          isMobileMenuOpen 
+            ? 'max-h-auto opacity-100' 
+            : 'max-h-0 opacity-0 overflow-hidden'
+        } bg-white border-t border-gray-200 shadow-xl z-40`}>
+          <div className="px-4 py-6 space-y-2">
+            <NavLink to="/dashboard" className={({ isActive }) => 
+              `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
+                isActive 
+                  ? 'bg-gradient-to-r from-emerald-600 to-blue-700 text-white shadow-lg border-emerald-500 scale-105' 
+                  : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 border-transparent hover:border-emerald-300 hover:shadow-md'
+              }`} onClick={() => setIsMobileMenuOpen(false)}>
+              📊 Dashboard
+            </NavLink>
+
+            <NavLink to="/productos" className={({ isActive }) => 
+              `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
+                isActive 
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-700 text-white shadow-lg border-blue-500 scale-105' 
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50 border-transparent hover:border-blue-300 hover:shadow-md'
+              }`} onClick={() => setIsMobileMenuOpen(false)}>
+              📦 Productos
+            </NavLink>
+
+            <NavLink to="/mesas" className={({ isActive }) => 
+              `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
+                isActive 
+                  ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg border-purple-500 scale-105' 
+                  : 'text-gray-700 hover:text-purple-600 hover:bg-purple-50 border-transparent hover:border-purple-300 hover:shadow-md'
+              }`} onClick={() => setIsMobileMenuOpen(false)}>
+              🪑 Mesas
+            </NavLink>
+
+            <NavLink to="/compras" className={({ isActive }) => 
+              `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
+                isActive 
+                  ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg border-orange-500 scale-105' 
+                  : 'text-gray-700 hover:text-orange-600 hover:bg-orange-50 border-transparent hover:border-orange-300 hover:shadow-md'
+              }`} onClick={() => setIsMobileMenuOpen(false)}>
+              🛒 Compras
+            </NavLink>
+
+            <NavLink to="/promociones" className={({ isActive }) => 
+              `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
+                isActive 
+                  ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg border-pink-500 scale-105' 
+                  : 'text-gray-700 hover:text-pink-600 hover:bg-pink-50 border-transparent hover:border-pink-300 hover:shadow-md'
+              }`} onClick={() => setIsMobileMenuOpen(false)}>
+              🎉 Promociones
+            </NavLink>
+
+            <NavLink to="/historial" className={({ isActive }) => 
+              `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
+                isActive 
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg border-amber-500 scale-105' 
+                  : 'text-gray-700 hover:text-amber-600 hover:bg-amber-50 border-transparent hover:border-amber-300 hover:shadow-md'
+              }`} onClick={() => setIsMobileMenuOpen(false)}>
+              📋 Historial
+            </NavLink>
+
+            <NavLink to="/cuentas" className={({ isActive }) => 
+              `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
+                isActive 
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg border-emerald-500 scale-105' 
+                  : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 border-transparent hover:border-emerald-300 hover:shadow-md'
+              }`} onClick={() => setIsMobileMenuOpen(false)}>
+              💰 Cuentas
+            </NavLink>
+
+            {/* ✅ GASTOS OPERATIVOS - MOBILE */}
+            <NavLink to="/gastos-operativos" className={({ isActive }) => 
+              `block w-full text-left px-4 py-4 rounded-xl font-semibold transition-all duration-300 border-l-4 ${
+                isActive 
+                  ? 'bg-gradient-to-r from-red-500 to-orange-600 text-white shadow-lg border-red-500 scale-105' 
+                  : 'text-gray-700 hover:text-red-600 hover:bg-red-50 border-transparent hover:border-red-300 hover:shadow-md'
+              }`} onClick={() => setIsMobileMenuOpen(false)}>
+              💸 Gastos Operativos
+            </NavLink>
+          </div>
+        </div>
+
+        {/* CONTENIDO PRINCIPAL */}
         <main className="pt-4 pb-12 px-4 sm:px-6 lg:px-8">
           <Routes>
-            <Route path="/" element={<Cuentas/>} />
+            <Route path="/" element={<Navigate to="/cuentas" />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/productos" element={<Productos />} />
             <Route path="/mesas" element={<Mesas />} />
             <Route path="/compras" element={<Compras />} />
+            <Route path="/usuarios" element={<Usuarios />} />
             <Route path="/promociones" element={<Promociones />} />
             <Route path="/cuentas" element={<Cuentas />} />
             <Route path="/historial" element={<Historial />} />
-
-            <Route path="*" element={
-              <div className="min-h-screen flex items-center justify-center py-12 px-4">
-                <div className="text-center max-w-md mx-auto">
-                  <div className="text-5xl sm:text-6xl mb-8 mx-auto w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center bg-gradient-to-r from-red-100 to-pink-100 rounded-3xl">
-                    404
-                  </div>
-                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-                    Página no encontrada
-                  </h1>
-                  <NavLink 
-                    to="/"
-                    className="inline-flex items-center px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-purple-700 text-white font-bold rounded-2xl sm:rounded-3xl hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl text-base sm:text-lg"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Ir a Cuentas →
-                  </NavLink>
-                </div>
-              </div>
-            } />
+            {/* ✅ RUTA GASTOS OPERATIVOS */}
+            <Route path="/gastos-operativos" element={<GastosOperativos />} />
+            <Route path="*" element={<Navigate to="/cuentas" />} />
           </Routes>
         </main>
       </div>

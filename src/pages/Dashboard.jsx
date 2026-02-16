@@ -1,4 +1,4 @@
-// ✅ DASHBOARD COMPLETO React - Con Filtro Fecha SV
+// Dashboard.jsx - COMPLETO con 4 CARDS + GASTOS OPERATIVOS ✅
 import React, { useState, useEffect } from 'react';
 const apiURL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -7,23 +7,38 @@ const Dashboard = () => {
     const [productosStock, setProductosStock] = useState([]);
     const [ventas, setVentas] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [periodo, setPeriodo] = useState('mes'); // ✅ Filtro activo
+    const [periodo, setPeriodo] = useState('turno');
 
-    // ✅ Cargar dashboard con filtro
-    const cargarDashboard = async (periodoFiltro = 'hoy') => {
+    const obtenerTurnoActualSV = () => {
+        const ahora = new Date();
+        const hora = ahora.getHours();
+        return (hora >= 18 || hora < 6);
+    };
+
+    const horaSV = () => new Date().toLocaleString('es-SV', {
+        timeZone: 'America/El_Salvador',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+
+    // ✅ UTILIDAD NETA CALCULADA
+    const utilNeta = (dashboard?.ventasPeriodo?.ingresos_periodo || 0) - 
+                    (dashboard?.ganancias?.costos || 0) - 
+                    (dashboard?.gastosOperativos?.gastos_operativos || 0);
+
+    const cargarDashboard = async (periodoFiltro) => {
         try {
             setLoading(true);
             
-            // 📊 Dashboard con periodo
-            const dashboardRes = await fetch(`${apiURL}/dashboard?periodo=${periodoFiltro}`);
+            const dashboardRes = await fetch(`${apiURL}/dashboard?filtro=${periodoFiltro}`);
             const dashboardData = await dashboardRes.json();
             
-            // 📦 Productos stock
             const productosRes = await fetch(`${apiURL}/dashboard/productos`);
             const productosData = await productosRes.json();
             
-            // 💸 Ventas recientes (7 días)
-            const ventasRes = await fetch(`${apiURL}/dashboard/ventas?page=1&limit=10`);
+            const ventasRes = await fetch(`${apiURL}/dashboard/ventas?page=1&limit=10&filtro=${periodoFiltro}`);
             const ventasData = await ventasRes.json();
 
             if (dashboardData.success && productosData.success && ventasData.success) {
@@ -40,22 +55,25 @@ const Dashboard = () => {
     };
 
     useEffect(() => {
-        cargarDashboard('hoy'); // Inicial: hoy
+        cargarDashboard('turno');
     }, []);
 
     const formatDinero = (numero) => {
         return Number(numero ?? 0).toLocaleString('es-SV', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
         });
     };
+
+    const esTurnoNoche = obtenerTurnoActualSV();
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-emerald-50">
                 <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-xl font-semibold text-gray-700">Cargando dashboard...</p>
+                    <div className="w-20 h-20 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-6"></div>
+                    <p className="text-2xl font-bold text-gray-700">Cargando Dashboard SV...</p>
+                    <p className="text-sm text-gray-500 mt-2">🕐 America/El_Salvador</p>
                 </div>
             </div>
         );
@@ -64,8 +82,21 @@ const Dashboard = () => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50 py-8 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
-                {/* HEADER */}
-                <div className="text-center mb-12">
+                {/* HEADER CON RELOJ SV */}
+                <div className="text-center mb-16">
+                    <div className="flex items-center justify-center gap-4 mb-6">
+                        <div className="bg-white/90 backdrop-blur-xl px-6 py-3 rounded-2xl border border-emerald-200 shadow-xl">
+                            <span className="text-2xl font-black">{horaSV()}</span>
+                            <span className="ml-2 text-sm font-bold text-gray-600">SV</span>
+                        </div>
+                        <div className={`px-4 py-2 rounded-2xl font-bold text-sm shadow-lg ${
+                            esTurnoNoche 
+                                ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white' 
+                                : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white'
+                        }`}>
+                            {esTurnoNoche ? '🌙 TURNO NOCHE' : '☀️ TURNO DÍA'}
+                        </div>
+                    </div>
                     <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-4">
                         📊 Reportes
                     </h1>
@@ -74,103 +105,130 @@ const Dashboard = () => {
                     </p>
                 </div>
 
-                {/* ✅ FILTRO PERIODO */}
-                <div className="flex flex-col sm:flex-row justify-center items-center mb-12 gap-4">
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-4 shadow-xl border border-white/50 flex flex-wrap gap-2">
-                        {['ayer', 'hoy', 'semana', 'mes', 'año'].map(p => (
+                {/* FILTRO */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50 mb-16">
+                    <div className="flex flex-wrap justify-center items-center gap-4 mb-6">
+                        {[
+                            { key: 'turno', label: '🌙 TURNO (18:00-06:00)', color: 'purple' },
+                            { key: 'hoy', label: '📅 Hoy', color: 'emerald' },
+                            { key: 'semana', label: '📊 Semana', color: 'blue' },
+                            { key: 'mes', label: '📈 Mes', color: 'indigo' },
+                            { key: 'año', label: '📉 Año', color: 'orange' }
+                        ].map(filtro => (
                             <button
-                                key={p}
-                                onClick={() => cargarDashboard(p)}
-                                className={`px-6 py-3 rounded-2xl font-bold text-sm transition-all duration-300 hover:scale-105 shadow-md ${
-                                    periodo === p 
-                                        ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-400/50' 
-                                        : 'bg-gray-100 text-gray-700 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-emerald-200'
+                                key={filtro.key}
+                                onClick={() => cargarDashboard(filtro.key)}
+                                className={`group px-8 py-4 rounded-2xl font-bold text-lg shadow-xl transition-all duration-300 hover:scale-105 border-2 ${
+                                    periodo === filtro.key
+                                        ? `bg-gradient-to-r from-${filtro.color}-500 to-${filtro.color}-600 shadow-${filtro.color}-400/50 border-${filtro.color}-400 text-white`
+                                        : `bg-white hover:bg-${filtro.color}-50 text-gray-800 border-gray-200 hover:border-${filtro.color}-300 hover:shadow-${filtro.color}-200`
                                 }`}
                             >
-                                {p.charAt(0).toUpperCase() + p.slice(1)}
+                                <span className="block text-2xl group-hover:scale-110 transition-transform">{filtro.label.split(' ')[0]}</span>
+                                <span className="text-sm">{filtro.label.split(' ').slice(1).join(' ')}</span>
                             </button>
                         ))}
                     </div>
-                    <span className="text-sm text-gray-500 bg-white/50 px-4 py-2 rounded-xl">
-                        Período: <strong className="text-emerald-600">{periodo}</strong>
-                    </span>
+                    <div className="text-center">
+                        <span className="text-lg font-bold text-gray-700 bg-gray-100 px-6 py-3 rounded-2xl">
+                            Período activo: <span className={`text-${periodo === 'turno' ? 'purple' : 'emerald'}-600 font-black`}>{periodo.toUpperCase()}</span>
+                        </span>
+                    </div>
                 </div>
 
-                {/* MÉTRICAS PRINCIPALES */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                    {/* Gasto */}
-                    <div className="group bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border border-white/50">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-red-100 rounded-2xl group-hover:bg-red-200 transition-all">
-                                <span className="text-2xl">💸</span>
-                            </div>
-                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">GASTO</span>
+                {/* ✅ 4 CARTAS PRINCIPALES */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+                    {/* 1. GASTOS OPERATIVOS */}
+                    <div className="group bg-gradient-to-br from-amber-50 to-yellow-50 rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-3 border-4 border-amber-200/50 backdrop-blur-xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <span className="text-4xl">🏢</span>
+                            <span className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-2xl font-bold shadow-lg">GASTOS OP.</span>
                         </div>
-                        <p className="text-3xl md:text-4xl font-black text-gray-900 mb-1">
-                            ${formatDinero(dashboard?.ganancias?.costos) || '0.00'}
+                        <p className="text-5xl lg:text-6xl font-black text-amber-600 mb-4 leading-none">
+                            ${formatDinero(dashboard?.gastosOperativos?.gastos_operativos)}
                         </p>
-                        <p className="text-sm text-gray-600">Inversión en productos ({periodo})</p>
+                        <p className="text-xl font-semibold text-gray-700">
+                            {dashboard?.gastosOperativos?.total_gastos || 0} gastos ({periodo})
+                        </p>
                     </div>
 
-                    {/* Ventas */}
-                    <div className="group bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border border-white/50">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-green-100 rounded-2xl group-hover:bg-green-200 transition-all">
-                                <span className="text-2xl">💰</span>
-                            </div>
-                            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">VENTAS</span>
+                    {/* 2. COSTO PRODUCTOS */}
+                    <div className="group bg-gradient-to-br from-red-50 to-rose-50 rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-3 border-4 border-red-200/50 backdrop-blur-xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <span className="text-4xl">💸</span>
+                            <span className="px-4 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-2xl font-bold shadow-lg">COSTO PROD.</span>
                         </div>
-                        <p className="text-3xl md:text-4xl font-black text-gray-900 mb-1">
-                            ${formatDinero(dashboard?.ventasPeriodo?.ingresos_periodo) || '0.00'}
+                        <p className="text-5xl lg:text-6xl font-black text-red-600 mb-4 leading-none">
+                            ${formatDinero(dashboard?.ganancias?.costos)}
                         </p>
-                        <p className="text-sm text-gray-600">{dashboard?.ventasPeriodo?.ventas_periodo || 0} ventas ({periodo})</p>
+                        <p className="text-xl font-semibold text-gray-700">Productos ({periodo})</p>
                     </div>
 
-                    {/* Utilidad */}
-                    <div className="group bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border border-white/50">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-emerald-100 rounded-2xl group-hover:bg-emerald-200 transition-all">
-                                <span className="text-2xl">📈</span>
-                            </div>
-                            <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">UTILIDAD</span>
+                    {/* 3. VENTAS */}
+                    <div className="group bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-3 border-4 border-emerald-200/50 backdrop-blur-xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <span className="text-4xl">💰</span>
+                            <span className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl font-bold shadow-lg">VENTAS</span>
                         </div>
-                        <p className={`text-3xl md:text-4xl font-black mb-1 ${
-                            dashboard?.ganancias?.ganancia >= 0 ? 'text-emerald-600' : 'text-red-600'
+                        <p className="text-5xl lg:text-6xl font-black text-emerald-600 mb-4 leading-none">
+                            ${formatDinero(dashboard?.ventasPeriodo?.ingresos_periodo)}
+                        </p>
+                        <p className="text-xl font-semibold text-gray-700">
+                            {dashboard?.ventasPeriodo?.ventas_periodo || 0} ventas
+                        </p>
+                    </div>
+
+                    {/* 4. UTILIDAD NETA */}
+                    <div className="group bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-3 border-4 border-blue-200/50 backdrop-blur-xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <span className="text-4xl">📈</span>
+                            <span className={`px-4 py-2 rounded-2xl font-bold shadow-lg text-white ${
+                                utilNeta >= 0 
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600' 
+                                    : 'bg-gradient-to-r from-red-500 to-rose-600'
+                            }`}>
+                                UTILIDAD NETA
+                            </span>
+                        </div>
+                        <p className={`text-5xl lg:text-6xl font-black mb-4 leading-none ${
+                            utilNeta >= 0 ? 'text-emerald-600' : 'text-red-600'
                         }`}>
-                            ${formatDinero(dashboard?.ganancias?.ganancia) || '0.00'}
+                            ${formatDinero(utilNeta)}
                         </p>
-                        <p className="text-sm text-gray-600">
-                            {dashboard?.ganancias?.ganancia >= 0 ? '💰 Ganancia' : '📉 Pérdida'} ({periodo})
+                        <p className={`text-xl font-semibold ${
+                            utilNeta >= 0 ? 'text-emerald-700' : 'text-red-700'
+                        }`}>
+                            {utilNeta >= 0 ? '💰 Ganancia' : '📉 Pérdida'}
                         </p>
                     </div>
                 </div>
 
                 {/* STOCK CRÍTICO + TOP PRODUCTOS */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-                    {/* Stock Crítico */}
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50">
-                        <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-16">
+                    {/* STOCK CRÍTICO */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-white/50">
+                        <h3 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-4">
                             📦 Stock Crítico
-                            <span className="px-3 py-1 bg-red-100 text-red-800 text-sm font-bold rounded-full">
+                            <span className="px-5 py-2 bg-red-100 text-red-800 text-lg font-bold rounded-2xl shadow-lg">
                                 {dashboard?.stockCritico || 0}
                             </span>
                         </h3>
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {productosStock.slice(0, 4).map(producto => (
-                                <div key={producto.id} className={`p-4 rounded-2xl border-l-4 shadow-sm flex items-center justify-between ${
-                                    producto.status === 'danger' ? 'bg-red-50 border-red-400' :
-                                    producto.status === 'warning' ? 'bg-orange-50 border-orange-400' : 
-                                    'bg-emerald-50 border-emerald-400'
+                        <div className="space-y-4 max-h-96 overflow-y-auto">
+                            {productosStock.slice(0, 6).map(producto => (
+                                <div key={producto.id} className={`p-6 rounded-3xl border-l-6 shadow-lg flex items-center justify-between ${
+                                    producto.status === 'danger' ? 'bg-red-50 border-red-500' :
+                                    producto.status === 'warning' ? 'bg-orange-50 border-orange-500' : 
+                                    'bg-emerald-50 border-emerald-500'
                                 }`}>
-                                    <div className="flex items-center gap-3 flex-1">
-                                        <span className="text-2xl">🍺</span>
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <span className="text-3xl">🍺</span>
                                         <div className="min-w-0">
-                                            <p className="font-semibold text-gray-900 truncate max-w-[200px]">{producto.descripcion}</p>
+                                            <p className="font-bold text-xl text-gray-900 truncate">{producto.descripcion}</p>
                                             <p className="text-sm text-gray-600">{producto.presentacion}</p>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className={`text-2xl font-bold ${
+                                        <p className={`text-3xl font-black ${
                                             producto.status === 'danger' ? 'text-red-600' :
                                             producto.status === 'warning' ? 'text-orange-600' : 'text-emerald-600'
                                         }`}>
@@ -181,80 +239,84 @@ const Dashboard = () => {
                                 </div>
                             ))}
                             {productosStock.length === 0 && (
-                                <p className="text-gray-500 text-center py-12">Sin productos críticos</p>
+                                <p className="text-gray-500 text-center py-20 text-xl">✅ Sin productos críticos</p>
                             )}
                         </div>
                     </div>
 
-                    {/* Top Productos */}
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50">
-                        <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                            🏆 Top Productos <span className="text-sm text-gray-500">({periodo})</span>
+                    {/* TOP PRODUCTOS */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-white/50">
+                        <h3 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-4">
+                            🏆 Top Productos <span className="text-lg text-gray-500">({periodo})</span>
                         </h3>
-                        <div className="space-y-3">
-                            {dashboard?.topProductos?.map((prod, i) => (
-                                <div key={prod.descripcion} className="p-4 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-2xl flex items-center justify-between hover:shadow-md transition-all">
-                                    <div className="flex items-center gap-3">
-                                        <span className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg">
-                                            {i + 1}
+                        <div className="space-y-4 max-h-96 overflow-y-auto">
+                            {dashboard?.topProductos?.slice(0, 6).map((prod, i) => (
+                                <div key={prod.descripcion} className="p-6 bg-gradient-to-r from-emerald-50 via-blue-50 to-emerald-50 rounded-3xl flex items-center justify-between hover:shadow-xl transition-all border border-emerald-200/50">
+                                    <div className="flex items-center gap-4">
+                                        <span className="w-14 h-14 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-2xl flex items-center justify-center font-bold text-2xl shadow-2xl">
+                                            #{i + 1}
                                         </span>
-                                        <span className="text-2xl">🍺</span>
+                                        <span className="text-3xl">🍺</span>
                                         <div className="min-w-0 flex-1">
-                                            <p className="font-semibold text-gray-900 truncate">{prod.descripcion}</p>
-                                            <p className="text-xs text-gray-600">{prod.presentacion}</p>
+                                            <p className="font-bold text-xl text-gray-900 truncate">{prod.descripcion}</p>
+                                            <p className="text-sm text-gray-600">{prod.presentacion}</p>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-lg font-bold text-emerald-600">
+                                        <p className="text-2xl font-bold text-emerald-600">
                                             ${parseFloat(prod.ingresos || 0).toLocaleString('es-SV')}
                                         </p>
-                                        <p className="text-sm text-gray-600">{prod.total_vendido || 0} unid.</p>
+                                        <p className="text-lg text-gray-600">{prod.total_vendido || 0} unid.</p>
                                     </div>
                                 </div>
-                            )) || <p className="text-gray-500 text-center py-12">Sin datos de ventas</p>}
+                            )) || <p className="text-gray-500 text-center py-20 text-xl">📈 Sin datos</p>}
                         </div>
                     </div>
                 </div>
 
-                {/* Últimas Ventas */}
-                <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50 overflow-hidden">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-6">💸 Últimas Ventas (7 días)</h3>
+                {/* ÚLTIMAS VENTAS */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-white/50 overflow-hidden mb-16">
+                    <h3 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
+                        💸 Últimas Ventas <span className="text-lg text-gray-500">({periodo})</span>
+                    </h3>
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[600px]">
+                        <table className="w-full min-w-[750px]">
                             <thead>
-                                <tr className="border-b-2 border-gray-200 bg-gray-50">
-                                    <th className="text-left py-4 px-4 font-semibold text-gray-900 text-sm">Cliente</th>
-                                    <th className="text-left py-4 px-4 font-semibold text-gray-900 text-sm">Total</th>
-                                    <th className="text-left py-4 px-4 font-semibold text-gray-900 text-sm">Estado</th>
-                                    <th className="text-left py-4 px-4 font-semibold text-gray-900 text-sm">Items</th>
-                                    <th className="text-right py-4 px-4 font-semibold text-gray-900 text-sm">Fecha</th>
+                                <tr className="border-b-4 border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+                                    <th className="text-left py-6 px-6 font-bold text-xl text-gray-900">Cliente</th>
+                                    <th className="text-left py-6 px-6 font-bold text-xl text-gray-900">Total</th>
+                                    <th className="text-left py-6 px-6 font-bold text-xl text-gray-900">Estado</th>
+                                    <th className="text-left py-6 px-6 font-bold text-xl text-gray-900">Items</th>
+                                    <th className="text-right py-6 px-6 font-bold text-xl text-gray-900">Fecha SV</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {ventas.map(venta => (
-                                    <tr key={venta.id} className="border-b border-gray-100 hover:bg-gray-50 transition-all">
-                                        <td className="py-4 px-4 font-medium text-gray-900 max-w-[200px] truncate">{venta.cliente || 'Cliente walk-in'}</td>
-                                        <td className="py-4 px-4 font-bold text-emerald-600 text-lg">
+                                    <tr key={venta.id} className="border-b-2 border-gray-100 hover:bg-emerald-50/50 transition-all">
+                                        <td className="py-6 px-6 font-bold text-lg text-gray-900 max-w-[250px] truncate">
+                                            {venta.cliente || '👤 Cliente walk-in'}
+                                        </td>
+                                        <td className="py-6 px-6 font-black text-2xl text-emerald-600">
                                             ${parseFloat(venta.total || 0).toLocaleString('es-SV', {minimumFractionDigits: 2})}
                                         </td>
-                                        <td className="py-4 px-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                        <td className="py-6 px-6">
+                                            <span className={`px-6 py-3 rounded-2xl text-lg font-bold shadow-lg ${
                                                 venta.estado === 'pagado' 
-                                                    ? 'bg-emerald-100 text-emerald-800 shadow-emerald-200/50' 
-                                                    : 'bg-orange-100 text-orange-800 shadow-orange-200/50'
+                                                    ? 'bg-emerald-100 text-emerald-800 shadow-emerald-300/50' 
+                                                    : 'bg-orange-100 text-orange-800 shadow-orange-300/50'
                                             }`}>
-                                                {venta.estado === 'pagado' ? '✅ Pagado' : '⏳ Pendiente'}
+                                                {venta.estado === 'pagado' ? '✅ PAGADO' : '⏳ PENDIENTE'}
                                             </span>
                                         </td>
-                                        <td className="py-4 px-4 font-semibold text-gray-900">{venta.items || 0}</td>
-                                        <td className="py-4 px-4 text-sm text-gray-500 text-right">
+                                        <td className="py-6 px-6 font-bold text-xl text-gray-900">{venta.items || 0}</td>
+                                        <td className="py-6 px-6 text-lg text-gray-700 font-semibold text-right">
                                             {new Date(venta.fecha_creado).toLocaleDateString('es-SV')}
                                         </td>
                                     </tr>
                                 ))}
                                 {ventas.length === 0 && (
                                     <tr>
-                                        <td colSpan="5" className="py-12 text-center text-gray-500">
+                                        <td colSpan="5" className="py-20 text-center text-gray-500 text-xl">
                                             Sin ventas recientes
                                         </td>
                                     </tr>
@@ -264,10 +326,17 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Footer Info */}
-                <div className="text-center mt-12 text-sm text-gray-500">
-                    <p>🕐 Actualizado: {new Date().toLocaleString('es-SV')}</p>
-                    <p>📍 Zona horaria: America/El_Salvador</p>
+                {/* FOOTER */}
+                <div className="text-center py-12 bg-white/60 backdrop-blur-xl rounded-3xl border border-emerald-200/50 shadow-xl">
+                    <p className="text-2xl font-bold text-emerald-700 mb-4">
+                        🕐 Actualizado: {new Date().toLocaleString('es-SV', { timeZone: 'America/El_Salvador' })}
+                    </p>
+                    <p className="flex items-center justify-center gap-4 text-lg text-gray-600">
+                        <span>📍 America/El_Salvador (UTC-6)</span>
+                        <span className="px-6 py-3 bg-emerald-100 text-emerald-800 rounded-2xl font-bold shadow-lg">
+                            Turno 18:00-06:00
+                        </span>
+                    </p>
                 </div>
             </div>
         </div>
