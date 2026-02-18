@@ -596,6 +596,20 @@ const GastosOperativos = () => {
                 </div>
             </div>
             )}
+
+            {gastos.length === 0 && !loading && (
+                <div className="text-center py-20">
+                <div className="text-6xl mb-4">💸</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">No hay gastos operativos</h2>
+                <p className="text-gray-600 mb-6">Crea el primer gasto operativo para empezar</p>
+                <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300"
+                >
+                    ➕ Nuevo Gasto Operativo
+                </button>
+                </div>
+            )}
         </div>
 
         {/* MODAL CREAR/EDITAR - PANTALLA COMPLETA + SCROLL ÚNICO */}
@@ -746,7 +760,7 @@ const GastosOperativos = () => {
                             ${formatDinero(producto.precio_compra)}
                         </div>
                         <div className="text-xs text-gray-500 flex items-center gap-1 z-10 relative pr-8 sm:pr-0">
-                            📦 <span className="font-semibold">{producto.cantidad_disponible}</span>
+                            📦 <span className="font-semibold">{Math.trunc(producto.cantidad_disponible).toString()}</span>
                         </div>
                         </button>
                     );

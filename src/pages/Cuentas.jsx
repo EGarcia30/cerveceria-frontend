@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import CorteCajaModal from '../components/CorteCajaModal';
+
 const apiURL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const Cuentas = () => {
@@ -40,7 +42,8 @@ const Cuentas = () => {
     //mesas
     const [mesasTotalPages, setMesasTotalPages] = useState(1);
 
-
+    //Corte de caja
+    const [showCorteModal, setShowCorteModal] = useState(false);
 
     // ✅ HANDLERS DETALLE SIMPLIFICADOS
     const handleAumentarCantidadDetalle = (id) => {
@@ -535,194 +538,206 @@ const Cuentas = () => {
         <>      
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white py-6 px-4 sm:py-8 sm:px-6 lg:py-12">
             <div className="max-w-7xl mx-auto">
-            {/* HEADER */}
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 lg:mb-12 gap-4">
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">💰 Cuentas</h1>
-                <button
-                onClick={() => {
-                    setShowCreateModal(true);
-                    setProductosPage(1);
-                }}
-                    className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-6 sm:py-4 sm:px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 w-full sm:w-auto text-sm sm:text-base"
-                >
-                ➕ Nueva Cuenta
-                </button>
-            </div>
-
-            {/* PAGINACIÓN CUENTAS */}
-            {pagination.totalPages > 1 && (
-                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-md lg:shadow-lg mb-8 lg:mb-12 flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4">
-                <button 
-                    className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={page <= 1}
-                >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-
-                <div className="hidden sm:flex gap-1 lg:gap-2 justify-center min-w-[120px] lg:min-w-[160px]">
-                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                    const startPage = Math.max(1, page - 2);
-                    const pageNum = Math.min(startPage + i, pagination.totalPages);
-                    return (
+                {/* HEADER CON BOTÓN CORTE DE CAJA */}
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 lg:mb-12 gap-4">
+                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">💰 Cuentas</h1>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        {/* BOTÓN NUEVA CUENTA (sin cambios) */}
                         <button
-                        key={pageNum}
-                        className={`w-10 h-10 sm:w-11 sm:h-11 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl lg:rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-sm lg:shadow-md flex items-center justify-center text-sm lg:text-base flex-shrink-0 ${
-                            pageNum === page 
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25' 
-                            : 'bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700 border border-gray-200 hover:border-blue-200'
-                        }`}
-                        onClick={() => setPage(pageNum)}
+                            onClick={() => {
+                                setShowCreateModal(true);
+                                setProductosPage(1);
+                            }}
+                            className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-6 sm:py-4 sm:px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 w-full sm:w-auto text-sm sm:text-base"
                         >
-                        {pageNum}
+                            ➕ Nueva Cuenta
                         </button>
-                    );
-                    })}
-                </div>
-
-                <button 
-                    className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
-                    onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
-                    disabled={page >= pagination.totalPages}
-                >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-
-                <div className="hidden sm:block text-gray-700 font-semibold bg-gray-100 px-4 py-2 lg:px-6 lg:py-3 rounded-xl lg:rounded-2xl border border-gray-200 text-sm lg:text-base whitespace-nowrap flex-shrink-0">
-                    Pg. <span className="text-blue-600 font-bold">{page}</span> de <span className="text-purple-600 font-bold">{pagination.totalPages}</span>
-                </div>
-                </div>
-            )}
-
-            {/* GRID CUENTAS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {cuentas.map(cuenta => (
-                <div key={cuenta.id} className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:-translate-y-1">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold text-gray-900 line-clamp-1">Cuenta #{cuenta.id}</h3>
-                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                            cuenta.estado === 'pagado' 
-                            ? 'bg-emerald-100 text-emerald-800' 
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                            {cuenta.estado === 'pagado' ? '✅ Pagada' : '⏳ Pendiente'}
-                        </span>
-                    </div>
-                    
-                    <div className="space-y-2 mb-6">
-                        <p className="inline text-lg text-gray-600 font-medium">Cliente: 
-                            <p className='inline text-lg font-bold text-gray-600 ms-2'>{cuenta.cliente.toUpperCase()}</p>
-                        </p>
-                        {cuenta.mesa_id && (
-                            <p className="text-lg text-gray-600 font-medium">
-                            🪑 Mesa: 
-                            <p className='inline text-lg font-bold text-gray-600 ms-2'>{cuenta.numero_mesa}</p>
-                            </p>
-                        )}
-                    </div>
-
-                    <div className="text-2xl lg:text-3xl font-bold text-emerald-600 mb-6 bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-xl">
-                    ${formatDinero(cuenta.total)}
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    {cuenta.estado === 'pendiente' && (
+                        
+                        {/* ✅ BOTÓN CORTE DE CAJA NUEVO */}
                         <button
-                        onClick={() => handlePagarCuenta(cuenta.id)}
-                        disabled={updating === cuenta.id}
-                        className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            onClick={() => setShowCorteModal(true)}
+                            className="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold py-3 px-6 sm:py-4 sm:px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 w-full sm:w-auto text-sm sm:text-base"
+                            title="Solo 1 corte por turno (18:00-06:00)"
                         >
-                        {updating === cuenta.id ? (
-                            <>
-                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                            </svg>
-                            Pagando...
-                            </>
-                        ) : (
-                            '💰 Marcar Pagado'
-                        )}
+                            🖨️ Corte de Caja
                         </button>
-                    )}
+                    </div>
+                </div>
+
+                {/* PAGINACIÓN CUENTAS */}
+                {pagination.totalPages > 1 && (
+                    <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-md lg:shadow-lg mb-8 lg:mb-12 flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4">
                     <button 
-                        onClick={() => handleVerDetalle(cuenta.id)}
-                        disabled={loadingDetail === cuenta.id}
-                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
+                        onClick={() => setPage(Math.max(1, page - 1))}
+                        disabled={page <= 1}
                     >
-                        👁️ Ver Detalle
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+
+                    <div className="hidden sm:flex gap-1 lg:gap-2 justify-center min-w-[120px] lg:min-w-[160px]">
+                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                        const startPage = Math.max(1, page - 2);
+                        const pageNum = Math.min(startPage + i, pagination.totalPages);
+                        return (
+                            <button
+                            key={pageNum}
+                            className={`w-10 h-10 sm:w-11 sm:h-11 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl lg:rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-sm lg:shadow-md flex items-center justify-center text-sm lg:text-base flex-shrink-0 ${
+                                pageNum === page 
+                                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25' 
+                                : 'bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700 border border-gray-200 hover:border-blue-200'
+                            }`}
+                            onClick={() => setPage(pageNum)}
+                            >
+                            {pageNum}
+                            </button>
+                        );
+                        })}
+                    </div>
+
+                    <button 
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
+                        onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
+                        disabled={page >= pagination.totalPages}
+                    >
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+
+                    <div className="hidden sm:block text-gray-700 font-semibold bg-gray-100 px-4 py-2 lg:px-6 lg:py-3 rounded-xl lg:rounded-2xl border border-gray-200 text-sm lg:text-base whitespace-nowrap flex-shrink-0">
+                        Pg. <span className="text-blue-600 font-bold">{page}</span> de <span className="text-purple-600 font-bold">{pagination.totalPages}</span>
+                    </div>
+                    </div>
+                )}
+
+                {/* GRID CUENTAS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {cuentas.map(cuenta => (
+                    <div key={cuenta.id} className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:-translate-y-1">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-gray-900 line-clamp-1">Cuenta #{cuenta.id}</h3>
+                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                                cuenta.estado === 'pagado' 
+                                ? 'bg-emerald-100 text-emerald-800' 
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                                {cuenta.estado === 'pagado' ? '✅ Pagada' : '⏳ Pendiente'}
+                            </span>
+                        </div>
+                        
+                        <div className="space-y-2 mb-6">
+                            <p className="inline text-lg text-gray-600 font-medium">Cliente: 
+                                <p className='inline text-lg font-bold text-gray-600 ms-2'>{cuenta.cliente.toUpperCase()}</p>
+                            </p>
+                            {cuenta.mesa_id && (
+                                <p className="text-lg text-gray-600 font-medium">
+                                🪑 Mesa: 
+                                <p className='inline text-lg font-bold text-gray-600 ms-2'>{cuenta.numero_mesa}</p>
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="text-2xl lg:text-3xl font-bold text-emerald-600 mb-6 bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-xl">
+                        ${formatDinero(cuenta.total)}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        {cuenta.estado === 'pendiente' && (
+                            <button
+                            onClick={() => handlePagarCuenta(cuenta.id)}
+                            disabled={updating === cuenta.id}
+                            className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                            {updating === cuenta.id ? (
+                                <>
+                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                </svg>
+                                Pagando...
+                                </>
+                            ) : (
+                                '💰 Marcar Pagado'
+                            )}
+                            </button>
+                        )}
+                        <button 
+                            onClick={() => handleVerDetalle(cuenta.id)}
+                            disabled={loadingDetail === cuenta.id}
+                            className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            👁️ Ver Detalle
+                        </button>
+                        </div>
+                    </div>
+                    ))}
+                </div>
+
+                {/* PAGINACIÓN CUENTAS */}
+                {pagination.totalPages > 1 && (
+                    <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-md lg:shadow-lg mb-8 lg:mb-12 flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4">
+                    <button 
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
+                        onClick={() => setPage(Math.max(1, page - 1))}
+                        disabled={page <= 1}
+                    >
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+
+                    <div className="hidden sm:flex gap-1 lg:gap-2 justify-center min-w-[120px] lg:min-w-[160px]">
+                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                        const startPage = Math.max(1, page - 2);
+                        const pageNum = Math.min(startPage + i, pagination.totalPages);
+                        return (
+                            <button
+                            key={pageNum}
+                            className={`w-10 h-10 sm:w-11 sm:h-11 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl lg:rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-sm lg:shadow-md flex items-center justify-center text-sm lg:text-base flex-shrink-0 ${
+                                pageNum === page 
+                                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25' 
+                                : 'bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700 border border-gray-200 hover:border-blue-200'
+                            }`}
+                            onClick={() => setPage(pageNum)}
+                            >
+                            {pageNum}
+                            </button>
+                        );
+                        })}
+                    </div>
+
+                    <button 
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
+                        onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
+                        disabled={page >= pagination.totalPages}
+                    >
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+
+                    <div className="hidden sm:block text-gray-700 font-semibold bg-gray-100 px-4 py-2 lg:px-6 lg:py-3 rounded-xl lg:rounded-2xl border border-gray-200 text-sm lg:text-base whitespace-nowrap flex-shrink-0">
+                        Pg. <span className="text-blue-600 font-bold">{page}</span> de <span className="text-purple-600 font-bold">{pagination.totalPages}</span>
+                    </div>
+                    </div>
+                )}
+
+                {cuentas.length === 0 && !loading && (
+                    <div className="text-center py-20">
+                    <div className="text-6xl mb-4">💸</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">No hay cuentas</h2>
+                    <p className="text-gray-600 mb-6">Crea la primera cuenta para empezar</p>
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300"
+                    >
+                        ➕ Nueva Cuenta
                     </button>
                     </div>
-                </div>
-                ))}
-            </div>
-
-            {/* PAGINACIÓN CUENTAS */}
-            {pagination.totalPages > 1 && (
-                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-md lg:shadow-lg mb-8 lg:mb-12 flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4">
-                <button 
-                    className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={page <= 1}
-                >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-
-                <div className="hidden sm:flex gap-1 lg:gap-2 justify-center min-w-[120px] lg:min-w-[160px]">
-                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                    const startPage = Math.max(1, page - 2);
-                    const pageNum = Math.min(startPage + i, pagination.totalPages);
-                    return (
-                        <button
-                        key={pageNum}
-                        className={`w-10 h-10 sm:w-11 sm:h-11 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl lg:rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-sm lg:shadow-md flex items-center justify-center text-sm lg:text-base flex-shrink-0 ${
-                            pageNum === page 
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25' 
-                            : 'bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700 border border-gray-200 hover:border-blue-200'
-                        }`}
-                        onClick={() => setPage(pageNum)}
-                        >
-                        {pageNum}
-                        </button>
-                    );
-                    })}
-                </div>
-
-                <button 
-                    className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md lg:shadow-lg text-xs lg:text-sm flex-shrink-0"
-                    onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
-                    disabled={page >= pagination.totalPages}
-                >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-
-                <div className="hidden sm:block text-gray-700 font-semibold bg-gray-100 px-4 py-2 lg:px-6 lg:py-3 rounded-xl lg:rounded-2xl border border-gray-200 text-sm lg:text-base whitespace-nowrap flex-shrink-0">
-                    Pg. <span className="text-blue-600 font-bold">{page}</span> de <span className="text-purple-600 font-bold">{pagination.totalPages}</span>
-                </div>
-                </div>
-            )}
-
-            {cuentas.length === 0 && !loading && (
-                <div className="text-center py-20">
-                <div className="text-6xl mb-4">💸</div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">No hay cuentas</h2>
-                <p className="text-gray-600 mb-6">Crea la primera cuenta para empezar</p>
-                <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300"
-                >
-                    ➕ Nueva Cuenta
-                </button>
-                </div>
-            )}
+                )}
             </div>
         </div>
 
@@ -935,7 +950,7 @@ const Cuentas = () => {
                                             </div>
                                             <div className="text-xs text-gray-500 flex items-center gap-1 z-10 relative pr-8 sm:pr-0">
                                                 Stock 
-                                                <span className="text-base font-semibold">{producto.cantidad_disponible}</span>
+                                                <span className="text-base font-semibold">{Math.trunc(producto.cantidad_disponible).toString()}</span>
                                             </div>
                                         </button>
                                     );
@@ -1307,7 +1322,7 @@ const Cuentas = () => {
                                                     ${formatDinero(producto.precio_venta)}
                                                 </div>
                                                 <div className="text-xs text-gray-500 flex items-center gap-1 z-10 relative pr-8 sm:pr-0">
-                                                    Stock <span className="text-base font-semibold">{producto.cantidad_disponible}</span>
+                                                    Stock <span className="text-base font-semibold">{Math.trunc(producto.cantidad_disponible).toString()}</span>
                                                 </div>
                                             </button>
                                         );
@@ -1532,6 +1547,10 @@ const Cuentas = () => {
                 </div>
             </div>
         )}
+        <CorteCajaModal 
+                isOpen={showCorteModal} 
+                onClose={() => setShowCorteModal(false)}
+            />
         </>
     );
 };
