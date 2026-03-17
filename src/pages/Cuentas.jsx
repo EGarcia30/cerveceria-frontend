@@ -49,6 +49,204 @@ const Cuentas = () => {
     const [categorias, setCategorias] = useState([]);
     const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('N/A');
 
+    //Buscador de cuentas
+    const [searchCuenta, setSearchCuenta] = useState('');
+    const [searchCuentaInput, setSearchCuentaInput] = useState('');
+
+    //Buscador productos
+    const [searchProducto, setSearchProducto] = useState('');
+    const [searchProductoInput, setSearchProductoInput] = useState('');
+
+    //FETCH PRINCIPALES
+    const fetchCuentas = async (currentPage = 1, searchTerm = '') => {
+        try {
+            setLoading(true);
+
+            const params = new URLSearchParams({
+                page: currentPage,
+                limit: 10
+            });
+
+            if (searchTerm && searchTerm.trim() !== '') {
+                params.append('search', searchTerm);
+            }
+
+            const response = await fetch(`${apiURL}/cuentas?${params.toString()}`);
+            const data = await response.json();
+
+            console.log('fetchCuentas response:', data);
+
+            if (data.success) {
+                setCuentas(data.data);
+                setPagination(data.pagination);
+            }
+
+        } catch (error) {
+            console.error('Error cargando cuentas:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ✅ Cargar categorías al abrir modal
+    const fetchCategorias = async () => {
+        try {
+            const response = await fetch(`${apiURL}/categorias`);
+            const data = await response.json();
+            if (data.success) {
+                setCategorias(data.data);
+            }
+        } catch (error) {
+            console.error('Error cargando categorías:', error);
+        }
+    };
+
+    const fetchProductos = async (currentPage = 1, searchTerm = '', categoria = 'N/A') => {
+        try {
+            setLoading(true);
+            const params = new URLSearchParams({
+                page: currentPage,
+                limit: 10
+            });
+
+            // búsqueda
+            if (searchTerm && searchTerm.trim() !== '') {
+                params.append('search', searchTerm);
+            }
+
+            // categoría
+            if (categoria && categoria !== 'N/A') {
+                params.append('categoria', categoria);
+            }
+
+            const response = await fetch(`${apiURL}/productos?${params.toString()}`);
+
+            if (!response.ok) {
+                throw new Error('Error en la respuesta del servidor');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+
+                setProductos(data.data || []);
+                setProductosPagination(data.pagination);
+            } else {
+                throw new Error(data.message || 'Error al obtener productos');
+            }
+
+        } catch (err) {
+            console.error('Error fetchProductos:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchMesas = async (currentPage = 1) => {
+        try {
+        const response = await fetch(`${apiURL}/mesas?page=${currentPage}&limit=10`);
+        const data = await response.json();
+        
+        if (data.success){
+            setMesas(data.data)
+            setMesasTotalPages(data.pagination.totalPages)
+        }
+        } catch (error) {
+        console.error('Error cargando mesas:', error);
+        }
+    };
+
+    //USEEFFECT PRINCIPALES
+    // Effects
+    useEffect(() => {
+        console.log('fetchCuentas triggered with:', { page, searchCuenta });
+        fetchCuentas(page, searchCuenta);
+    }, [page, searchCuenta]);
+
+    // useEffect(() => {
+    //     const delayDebounceCuenta = setTimeout(() => {
+    //         setSearchCuenta(searchCuentaInput)
+    //         setPage(1)
+    //     }, 4000)
+
+    //     return () => clearTimeout(delayDebounceCuenta)
+
+    // }, [searchCuentaInput]);
+
+    useEffect(() => {
+        if (showDetailModal || showCreateModal) {
+            console.log('fetchProductos triggered by modal open with:', { productosPage, searchProducto, categoriaSeleccionada });
+            fetchProductos(productosPage, searchProducto, categoriaSeleccionada)
+        }
+    }, [showCreateModal, showDetailModal, productosPage, categoriaSeleccionada, searchProducto])
+
+    useEffect(() => {
+        if (showDetailModal || showCreateModal) {
+            fetchCategorias()
+        }
+    }, [showCreateModal, showDetailModal]);
+
+    useEffect(() => {
+        if (selectedProductos.length === 0) return;
+
+        const cargarPromociones = async () => {
+            try {
+            const ids = selectedProductos.map(p => p.id);
+            const response = await fetch(`${apiURL}/promociones?ids=${ids.join(',')}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const map = {};
+                data.data.forEach(promo => {
+                if (!map[promo.producto_id]) map[promo.producto_id] = [];
+                map[promo.producto_id].push(promo);
+                });
+                setPromocionesPorProducto(map);
+            }
+            } catch (error) {
+                console.error('Error cargando promociones:', error);
+            }
+        };
+
+        cargarPromociones();
+    }, [selectedProductos]);
+
+    // ✅useEffect de promociones detalle:
+    useEffect(() => {
+        if (showDetailModal) {
+            // ✅ Endpoint nuevo: /api/promociones/all
+            fetch(`${apiURL}/promociones/all`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        const map = {};
+                        data.data.forEach(promo => {
+                            const prodId = String(promo.producto_id);
+                            if (!map[prodId]) map[prodId] = [];
+                            map[prodId].push(promo);
+                        });
+                        setPromocionesPorProductoDetalle(map);
+                    }
+                })
+                .catch(err => console.error('❌ Error:', err));
+        }
+    }, [showDetailModal]);
+
+    useEffect(() => {
+        fetchMesas(mesasPage);
+    }, [mesasPage])
+
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            setSearchProducto(searchProductoInput)
+            setProductosPage(1)
+        }, 4000)
+
+        return () => clearTimeout(delayDebounce)
+
+    }, [searchProductoInput]);
+
+    //HANDLERS PRINCIPALES
     // ✅ HANDLERS DETALLE SIMPLIFICADOS
     const handleAumentarCantidadDetalle = (id) => {
         // Actualizar productos originales
@@ -86,7 +284,7 @@ const Cuentas = () => {
             p.id === producto.id ? { ...p, cantidad: (p.cantidad || 0) + 1 } : p
         ));
         } else {
-            setEditProductos(prev => [...prev, { ...producto, cantidad: 1 }]);
+            setEditProductos(prev => [{ ...producto, cantidad: 1 }, ...prev]);
         }
     };
 
@@ -136,68 +334,6 @@ const Cuentas = () => {
         }
     };
 
-    // Fetch data (TODO IGUAL)
-    const fetchCuentas = async (currentPage = 1) => {
-        try {
-        setLoading(true);
-        const response = await fetch(`${apiURL}/cuentas?page=${currentPage}&limit=10`);
-        const data = await response.json();
-        if (data.success) {
-            setCuentas(data.data);
-            setPagination(data.pagination);
-        }
-        } catch (error) {
-        console.error('Error cargando cuentas:', error);
-        } finally {
-        setLoading(false);
-        }
-    };
-
-    // ✅ Cargar categorías al abrir modal
-    const fetchCategorias = async () => {
-        try {
-            const response = await fetch(`${apiURL}/categorias`);
-            const data = await response.json();
-            if (data.success) {
-                setCategorias(data.data);
-            }
-        } catch (error) {
-            console.error('Error cargando categorías:', error);
-        }
-    };
-
-    const fetchProductos = async (currentPage = 1, categoria = 'N/A') => {
-        try {
-            const params = new URLSearchParams({
-                page: currentPage,
-                limit: 10,
-                categoria: categoria
-            });
-            const response = await fetch(`${apiURL}/productos?${params}`);
-            const data = await response.json();
-            if (data.success) {
-                setProductos(data.data);
-                setProductosPagination(data.pagination);
-            }
-        } catch (error) {
-            console.error('Error cargando productos:', error);
-        }
-    };
-
-    const fetchMesas = async (currentPage = 1) => {
-        try {
-        const response = await fetch(`${apiURL}/mesas?page=${currentPage}&limit=10`);
-        const data = await response.json();
-        
-        if (data.success){
-            setMesas(data.data)
-            setMesasTotalPages(data.pagination.totalPages)
-        }
-        } catch (error) {
-        console.error('Error cargando mesas:', error);
-        }
-    };
-
     // Handlers Modal Nueva Cuenta (TODO IGUAL)
     const handleTipoChange = (e) => {
         setCreateForm({ ...createForm, tipo_cuenta: e.target.value, mesa_id: null });
@@ -211,8 +347,6 @@ const Cuentas = () => {
             tipo_cuenta: value, mesa_id: value !== 'mesa' ? null : prev.mesa_original 
         }));
     };
-
-
 
     const handleMesaSelect = (mesaId) => {
         setCreateForm({ ...createForm, mesa_id: mesaId });
@@ -269,13 +403,13 @@ const Cuentas = () => {
             ));
         } else {
             setSelectedProductos([
-            ...selectedProductos,
-            { 
-                ...producto, 
-                cantidad: 1,
-                precioventa_original: producto.precio_venta, // guardar precio normal
-                promocion_activa: null                       // sin promo al inicio
-            }
+                { 
+                    ...producto, 
+                    cantidad: 1,
+                    precioventa_original: producto.precio_venta, // guardar precio normal
+                    promocion_activa: null                       // sin promo al inicio
+                },
+                ...selectedProductos           
             ]);
         }
     };
@@ -318,10 +452,6 @@ const Cuentas = () => {
         setSelectedProductos(selectedProductos.filter(p => p.id !== productoId));
     };
 
-    const calcularTotal = () => {
-        return selectedProductos.reduce((total, p) => total + (p.precio_venta * p.cantidad), 0);
-    };
-
     // Handlers Cuentas (CORREGIDO)
     const handlePagarCuenta = async (cuentaId) => {
         try {
@@ -333,8 +463,8 @@ const Cuentas = () => {
         
         if (data.success) {
             await Promise.all([
-            fetchCuentas(page),
-            fetchMesas()
+                fetchCuentas(page),
+                fetchMesas()
             ]);
         }
         } catch (error) {
@@ -371,11 +501,11 @@ const Cuentas = () => {
         setEditProductos([]);
         
         // ✅ CARGAR PRODUCTOS ANTES de abrir modal
-        setProductosPage(1);
-        await Promise.all([fetchProductos(1), fetchCategorias()]);
+        //setProductosPage(1);
+        //await Promise.all([fetchProductos(1), fetchCategorias()]);
         
         setShowDetailModal(true);
-    }, [fetchProductos]);
+    }, [showDetailModal]);
 
     const handleCrearCuenta = async (e) => {
         e.preventDefault();
@@ -402,10 +532,7 @@ const Cuentas = () => {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            setShowCreateModal(false);
-            setSelectedProductos([]);
-            setCreateForm({ cliente: '', tipo_cuenta: 'individual', mesa_id: null });
-            setProductosPage(1);
+            handleCerrarModal();
             fetchCuentas(page);
             fetchMesas();
         } else {
@@ -426,7 +553,8 @@ const Cuentas = () => {
         setCreateForm({ cliente: '', tipo_cuenta: 'individual', mesa_id: null });
         setProductosPage(1);
         setCategoriaSeleccionada('N/A');  // ✅ Reset a N/A
-        fetchProductos(1, 'N/A');   
+        setSearchProductoInput('');
+        //fetchProductos(1, );   
     };
 
     const handleCerrarDetalle = () => {
@@ -435,6 +563,8 @@ const Cuentas = () => {
         setEditForm({ cliente: '', mesa_id: '' });
         setDetalleProductos([]);
         setEditProductos([]);
+        setCategoriaSeleccionada('N/A');  // ✅ Reset a N/A
+        setSearchProductoInput('');
     };
 
     // ✅ 1. PROMOCIONES - SOLO editProductos
@@ -473,82 +603,17 @@ const Cuentas = () => {
         setEditProductos(prev => prev.filter(p => p.id !== productoId));
     };
 
+    //UTILS PRINCIPALES
+    const calcularTotal = () => {
+        return selectedProductos.reduce((total, p) => total + (p.precio_venta * p.cantidad), 0);
+    };
+
     const formatDinero = (numero) => {
         return Number(numero ?? 0).toLocaleString('es-SV', { 
         minimumFractionDigits: 2, 
         maximumFractionDigits: 2 
         });
     };
-
-    // Effects
-    useEffect(() => {
-        fetchCuentas(page);
-        fetchMesas();
-    }, [page]);
-
-    useEffect(() => {
-        if (showDetailModal) {
-            fetchCategorias(); 
-            fetchProductos(productosPage,categoriaSeleccionada);
-        }
-    }, [showDetailModal, productosPage, categoriaSeleccionada]);
-
-    useEffect(() => {
-        if (showCreateModal) {
-            fetchCategorias(); 
-            fetchProductos(productosPage, categoriaSeleccionada);
-        }
-    }, [showCreateModal, productosPage, categoriaSeleccionada]);
-
-    useEffect(() => {
-        if (selectedProductos.length === 0) return;
-
-        const cargarPromociones = async () => {
-            try {
-            const ids = selectedProductos.map(p => p.id);
-            const response = await fetch(`${apiURL}/promociones?ids=${ids.join(',')}`);
-            const data = await response.json();
-
-            if (data.success) {
-                const map = {};
-                data.data.forEach(promo => {
-                if (!map[promo.producto_id]) map[promo.producto_id] = [];
-                map[promo.producto_id].push(promo);
-                });
-                setPromocionesPorProducto(map);
-            }
-            } catch (error) {
-                console.error('Error cargando promociones:', error);
-            }
-        };
-
-        cargarPromociones();
-    }, [selectedProductos]);
-
-    // ✅useEffect de promociones detalle:
-    useEffect(() => {
-        if (showDetailModal) {
-            // ✅ Endpoint nuevo: /api/promociones/all
-            fetch(`${apiURL}/promociones/all`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success && data.data) {
-                        const map = {};
-                        data.data.forEach(promo => {
-                            const prodId = String(promo.producto_id);
-                            if (!map[prodId]) map[prodId] = [];
-                            map[prodId].push(promo);
-                        });
-                        setPromocionesPorProductoDetalle(map);
-                    }
-                })
-                .catch(err => console.error('❌ Error:', err));
-        }
-    }, [showDetailModal]);
-
-    useEffect(() => {
-        fetchMesas(mesasPage);
-    }, [mesasPage])
 
     //Utils
     const formatFechaUTCWithTime = (fechaUTC) => {
@@ -593,11 +658,7 @@ const Cuentas = () => {
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         {/* BOTÓN NUEVA CUENTA (sin cambios) */}
                         <button
-                            onClick={() => {
-                                setShowCreateModal(true);
-                                setProductosPage(1);
-                                setCategoriaSeleccionada('N/A');
-                            }}
+                            onClick={() => setShowCreateModal(true)}
                             className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-6 sm:py-4 sm:px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 w-full sm:w-auto text-sm sm:text-base"
                         >
                             ➕ Nueva Cuenta
@@ -614,7 +675,71 @@ const Cuentas = () => {
                     </div>
                 </div>
 
-                {/* PAGINACIÓN CUENTAS */}
+                {/* 🔎 BUSCADOR */}
+                <div className="mb-8 flex justify-center">
+                    <div className="relative w-full max-w-lg">
+
+                        {/* Icono */}
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+
+                        <input
+                            type="search"
+                            placeholder="Buscar cliente o número de cuenta..."
+                            value={searchCuentaInput}
+                            onChange={(e) => setSearchCuentaInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    setSearchCuenta(searchCuentaInput)
+                                    setPage(1)
+                                    e.target.blur()
+                                }
+                            }}
+                            className="
+                                w-full
+                                pl-12 pr-10
+                                py-3
+                                bg-white
+                                border border-gray-200
+                                rounded-2xl
+                                shadow-sm
+
+                                text-gray-800
+                                placeholder-gray-400
+
+                                transition-all duration-200
+
+                                focus:outline-none
+                                focus:border-blue-400
+                                focus:ring-4
+                                focus:ring-blue-100
+                                focus:shadow-md
+                            "
+                        />
+
+                        {/* Botón limpiar */}
+                        {searchCuentaInput && (
+                            <button
+                                onClick={() => {
+                                    setSearchCuentaInput('')
+                                    setSearchCuenta('')
+                                    setPage(1)
+                                }}
+                                className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        )}
+
+                    </div>
+                </div>
+
+                 {/* PAGINACIÓN CUENTAS */}
                 {pagination.totalPages > 1 && (
                     <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-md lg:shadow-lg mb-8 lg:mb-12 flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4">
                     <button 
@@ -958,7 +1083,109 @@ const Cuentas = () => {
                             </div>
 
                             {/* CONTENEDOR SIMPLE */}
-                            <div className="mb-6 space-y-3">
+                            <div className="mb-6 space-y-3">                                
+                                {/* CATEGORÍAS - Scroll horizontal NATURAL */}
+                                <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+                                    {/* N/A */}
+                                    <button onClick={() => {
+                                            setCategoriaSeleccionada('N/A');
+                                            fetchProductos(1);
+                                            setProductosPage(1);
+                                        }}
+                                        className={`flex-none px-3 py-2 rounded-xl font-semibold text-sm whitespace-nowrap ${
+                                            categoriaSeleccionada === 'N/A'
+                                                ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg'
+                                                : 'bg-white hover:bg-emerald-50 text-gray-700 border border-gray-200 hover:shadow-md'
+                                        }`}>
+                                        N/A
+                                    </button>
+                                    
+                                    {/* Categorías */}
+                                    {categorias.map((cat) => (
+                                        <button key={cat.id}
+                                                onClick={() => {
+                                                    setCategoriaSeleccionada(cat.codigo);
+                                                    fetchProductos(1, '' ,cat.codigo);
+                                                    setProductosPage(1);
+                                                }}
+                                                className={`flex-none px-3 py-2 rounded-xl font-semibold text-sm whitespace-nowrap flex items-center gap-1 ${
+                                                    categoriaSeleccionada === cat.codigo
+                                                        ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg'
+                                                        : 'bg-white hover:bg-emerald-50 text-gray-700 border border-gray-200 hover:shadow-md'
+                                                }`}>
+                                            {cat.codigo}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* 🔎 BUSCAR PRODUCTO */}
+                                <div className="mb-4">
+                                    <div className="relative">
+
+                                        {/* Icono */}
+                                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                    d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                            </svg>
+                                        </div>
+
+                                        <input
+                                            type="search"
+                                            placeholder="Buscar producto..."
+                                            value={searchProductoInput}
+                                            onChange={(e) => setSearchProductoInput(e.target.value)}
+                                            onKeyDown={(e) => {
+
+                                                if (e.key === "Enter") {
+                                                    setSearchProducto(searchProductoInput)
+                                                    setProductosPage(1)
+
+                                                    // 📱 cerrar teclado móvil
+                                                    e.target.blur()
+                                                }
+
+                                                // limpiar con ESC (extra UX)
+                                                if (e.key === "Escape") {
+                                                    setSearchProductoInput('')
+                                                    setSearchProducto('')
+                                                }
+
+                                            }}
+                                            className="
+                                                w-full
+                                                pl-10 pr-10
+                                                py-2.5
+                                                bg-white
+                                                border border-gray-200
+                                                rounded-xl
+                                                shadow-sm
+                                                placeholder-gray-400
+                                                transition-all
+                                                focus:outline-none
+                                                focus:border-blue-400
+                                                focus:ring-4
+                                                focus:ring-blue-100
+                                            "
+                                        />
+
+                                        {/* Botón limpiar */}
+                                        {searchProductoInput && (
+                                            <button
+                                                onClick={() => {
+                                                    setSearchProductoInput('')
+                                                    setSearchProducto('')
+                                                    setProductosPage(1)
+                                                }}
+                                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+
+                                    </div>
+                                </div>
+
                                 {/* PAGINACIÓN SUPERIOR */}
                                 {productosPagination.totalPages > 1 && (
                                     <div className="flex justify-end gap-2">
@@ -977,39 +1204,6 @@ const Cuentas = () => {
                                     </div>
                                 )}
 
-                                {/* CATEGORÍAS - Scroll horizontal NATURAL */}
-                                <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-                                    {/* N/A */}
-                                    <button onClick={() => {
-                                            setCategoriaSeleccionada('N/A');
-                                            fetchProductos(1, 'N/A');
-                                            setProductosPage(1);
-                                        }}
-                                        className={`flex-none px-3 py-2 rounded-xl font-semibold text-sm whitespace-nowrap ${
-                                            categoriaSeleccionada === 'N/A'
-                                                ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg'
-                                                : 'bg-white hover:bg-emerald-50 text-gray-700 border border-gray-200 hover:shadow-md'
-                                        }`}>
-                                        N/A
-                                    </button>
-                                    
-                                    {/* Categorías */}
-                                    {categorias.map((cat) => (
-                                        <button key={cat.id}
-                                                onClick={() => {
-                                                    setCategoriaSeleccionada(cat.codigo);
-                                                    fetchProductos(1, cat.codigo);
-                                                    setProductosPage(1);
-                                                }}
-                                                className={`flex-none px-3 py-2 rounded-xl font-semibold text-sm whitespace-nowrap flex items-center gap-1 ${
-                                                    categoriaSeleccionada === cat.codigo
-                                                        ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg'
-                                                        : 'bg-white hover:bg-emerald-50 text-gray-700 border border-gray-200 hover:shadow-md'
-                                                }`}>
-                                            {cat.codigo}
-                                        </button>
-                                    ))}
-                                </div>
                             </div>
 
                             {/* GRID PRODUCTOS */}
@@ -1362,6 +1556,115 @@ const Cuentas = () => {
                                 </h3>
                             </div>
 
+                            {/* ✅ CATEGORÍAS JUSTO ARRIBA DEL GRID (PARA COHERENCIA) */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-semibold text-blue-700 mb-3">📂 Categorías</label>
+                                <div className="flex gap-2 overflow-x-auto pb-4 -mx-2 px-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                                    {/* N/A */}
+                                    <button 
+                                        onClick={() => {
+                                            setCategoriaSeleccionada('N/A');
+                                            fetchProductos(1);
+                                            setProductosPage(1);
+                                        }}
+                                        className={`flex-none min-w-[60px] px-4 py-2.5 rounded-2xl font-bold text-sm whitespace-nowrap shadow-md transition-all duration-300 flex items-center justify-center hover:scale-[1.02] ${
+                                            categoriaSeleccionada === 'N/A'
+                                                ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-emerald-500/50 ring-2 ring-emerald-400/50'
+                                                : 'bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 text-gray-800 hover:shadow-emerald-100/50'
+                                        }`}
+                                    >
+                                        N/A
+                                    </button>
+                                    
+                                    {/* Categorías */}
+                                    {categorias.map((cat) => (
+                                        <button 
+                                            key={cat.id}
+                                            onClick={() => {
+                                                setCategoriaSeleccionada(cat.codigo);
+                                                fetchProductos(1, '',cat.codigo);
+                                                setProductosPage(1);
+                                            }}
+                                            className={`flex-none min-w-[80px] px-4 py-2.5 rounded-2xl font-bold text-sm whitespace-nowrap shadow-md transition-all duration-300 flex items-center justify-center hover:scale-[1.02] ${
+                                                categoriaSeleccionada === cat.codigo
+                                                    ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-emerald-500/50 ring-2 ring-emerald-400/50'
+                                                    : 'bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 text-gray-800 hover:shadow-emerald-100/50'
+                                            }`}
+                                        >
+                                            {cat.codigo}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 🔎 BUSCAR PRODUCTO */}
+                            <div className="mb-4">
+                                <div className="relative">
+
+                                    {/* Icono */}
+                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                        </svg>
+                                    </div>
+
+                                    <input
+                                        type="search"
+                                        placeholder="Buscar producto..."
+                                        value={searchProductoInput}
+                                        onChange={(e) => setSearchProductoInput(e.target.value)}
+                                        onKeyDown={(e) => {
+
+                                            if (e.key === "Enter") {
+                                                setSearchProducto(searchProductoInput)
+                                                setProductosPage(1)
+
+                                                // 📱 cerrar teclado móvil
+                                                e.target.blur()
+                                            }
+
+                                            // limpiar con ESC (extra UX)
+                                            if (e.key === "Escape") {
+                                                setSearchProductoInput('')
+                                                setSearchProducto('')
+                                            }
+
+                                        }}
+                                        className="
+                                            w-full
+                                            pl-10 pr-10
+                                            py-2.5
+                                            bg-white
+                                            border border-gray-200
+                                            rounded-xl
+                                            shadow-sm
+                                            placeholder-gray-400
+                                            transition-all
+                                            focus:outline-none
+                                            focus:border-blue-400
+                                            focus:ring-4
+                                            focus:ring-blue-100
+                                        "
+                                    />
+
+                                    {/* Botón limpiar */}
+                                    {searchProductoInput && (
+                                        <button
+                                            onClick={() => {
+                                                setSearchProductoInput('')
+                                                setSearchProducto('')
+                                                setProductosPage(1)
+                                            }}
+                                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+
+                                </div>
+                            </div>                                                        
+
                             {/* ✅ PAGINACIÓN SUPERIOR */}
                             {productosPagination.totalPages > 1 && (
                                 <div className="flex items-center justify-end gap-2 pb-4 mb-4">
@@ -1382,47 +1685,6 @@ const Cuentas = () => {
                                 </div>
                             )}
 
-                            {/* ✅ CATEGORÍAS JUSTO ARRIBA DEL GRID (PARA COHERENCIA) */}
-                            <div className="mb-6">
-                                <label className="block text-sm font-semibold text-blue-700 mb-3">📂 Categorías</label>
-                                <div className="flex gap-2 overflow-x-auto pb-4 -mx-2 px-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-                                    {/* N/A */}
-                                    <button 
-                                        onClick={() => {
-                                            setCategoriaSeleccionada('N/A');
-                                            fetchProductos(1, 'N/A');
-                                            setProductosPage(1);
-                                        }}
-                                        className={`flex-none min-w-[60px] px-4 py-2.5 rounded-2xl font-bold text-sm whitespace-nowrap shadow-md transition-all duration-300 flex items-center justify-center hover:scale-[1.02] ${
-                                            categoriaSeleccionada === 'N/A'
-                                                ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-emerald-500/50 ring-2 ring-emerald-400/50'
-                                                : 'bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 text-gray-800 hover:shadow-emerald-100/50'
-                                        }`}
-                                    >
-                                        N/A
-                                    </button>
-                                    
-                                    {/* Categorías */}
-                                    {categorias.map((cat) => (
-                                        <button 
-                                            key={cat.id}
-                                            onClick={() => {
-                                                setCategoriaSeleccionada(cat.codigo);
-                                                fetchProductos(1, cat.codigo);
-                                                setProductosPage(1);
-                                            }}
-                                            className={`flex-none min-w-[80px] px-4 py-2.5 rounded-2xl font-bold text-sm whitespace-nowrap shadow-md transition-all duration-300 flex items-center justify-center hover:scale-[1.02] ${
-                                                categoriaSeleccionada === cat.codigo
-                                                    ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-emerald-500/50 ring-2 ring-emerald-400/50'
-                                                    : 'bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 text-gray-800 hover:shadow-emerald-100/50'
-                                            }`}
-                                        >
-                                            {cat.codigo}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
                             {/* GRID PRODUCTOS */}
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                                     {productos.map(producto => {
@@ -1432,12 +1694,11 @@ const Cuentas = () => {
 
                                         // 2. Cantidad: Si quieres mostrar el TOTAL acumulado
                                         const cantidadSeleccionada = Number(enDetalle?.cantidad || 0) + Number(enEdit?.cantidad || 0);
-                                        const yaExiste = enEdit ? true : false;
+                                        //const yaExiste = enEdit ? true : false;
                                         return (
                                             <button
                                                 key={producto.id}
                                                 onClick={() => handleAgregarProductoDetalle(producto)}
-                                                disabled={yaExiste}
                                                 className="group p-4 sm:p-5 border-3 border-blue-300 rounded-2xl hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-300/50 transition-all duration-300 hover:scale-105 bg-gradient-to-br from-white to-blue-50 disabled:opacity-50 disabled:cursor-not-allowed h-full flex flex-col items-start gap-2 shadow-lg hover:shadow-xl relative overflow-hidden"
                                             >
                                                 {/* BADGE SELECCIONADO CON CANTIDAD */}

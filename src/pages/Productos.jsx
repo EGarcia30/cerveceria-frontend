@@ -122,7 +122,7 @@ const Productos = () => {
             const delayDebounce = setTimeout(() => {
                 setSearch(searchInput)
                 setPage(1)
-            }, 4000)
+            }, 2000)
 
             return () => clearTimeout(delayDebounce)
 

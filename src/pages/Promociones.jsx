@@ -8,8 +8,6 @@ const Promociones = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(false);
-    const [search, setSearch] = useState('');
-
     // Modal states
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -27,44 +25,50 @@ const Promociones = () => {
     const [creating, setCreating] = useState(false);
     const [updating, setUpdating] = useState(false);
 
-    // ✅ FIXED: Usa /all que NO requiere parámetros
-    const fetchPromociones = useCallback(async (searchTerm = '') => {
-        setLoading(true);
-        try {
-            // ✅ ENDPOINT CORRECTO: /api/promociones/all
-            const response = await fetch(`${apiURL}/promociones/all`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                // Filtrar solo ACTIVAS y buscar
-                let filtered = data.data.filter(p => p.activo === true);
-                
-                if (searchTerm) {
-                    filtered = filtered.filter(p => 
-                        p.nombre_promocion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        p.producto_id?.toString().includes(searchTerm)
-                    );
-                }
-                
-                // Paginación frontend (12 por página)
-                const itemsPerPage = 12;
-                const totalPgs = Math.ceil(filtered.length / itemsPerPage);
-                setTotalPages(totalPgs);
-                setPromociones(filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage));
-            }
-        } catch (error) {
-            console.error('❌ Error cargando promociones:', error);
-            setPromociones([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [page, search]);
+    //buscador promociones
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
 
+    const fetchPromociones = async (currentPage = 1, searchTerm = '') => {
+        try {
+
+            setLoading(true);
+
+            const params = new URLSearchParams({
+                page: currentPage,
+                limit: 10
+            });
+
+            if (searchTerm && searchTerm.trim() !== '') {
+                params.append('search', searchTerm);
+            }
+
+            const response = await fetch(`${apiURL}/promociones/pag?${params.toString()}`);
+
+            if (!response.ok) {
+                throw new Error('Error en servidor');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+
+                setPromociones(data.data);
+
+                setTotalPages(data.pagination.totalPages);
+
+            }
+
+        } catch (error) {
+
+            console.error('Error fetchPromociones:', error);
+
+        } finally {
+
+            setLoading(false);
+
+        }
+    };
     // ✅ FIXED: Usa endpoint correcto de productos
     const fetchProductos = useCallback(async () => {
         try {
@@ -87,18 +91,23 @@ const Promociones = () => {
     // Initial load
     useEffect(() => {
         fetchProductos();
-        fetchPromociones('');
+        //fetchPromociones(page, search);
     }, []);
 
     // Search + pagination
     useEffect(() => {
-        setPage(1);
-        fetchPromociones(search);
-    }, [search]);
+        fetchPromociones(page, search);
+        setPage(page);
+    }, [page,search]);
 
     useEffect(() => {
-        fetchPromociones(search);
-    }, [page]);
+        const delay = setTimeout(() => {
+            setSearch(searchInput);
+        }, 400);
+
+        return () => clearTimeout(delay);
+
+    }, [searchInput]);
 
     // CRUD Handlers
     const handleCreate = async (e) => {
@@ -258,38 +267,138 @@ const Promociones = () => {
                 </button>
             </div>
 
-            {/* SEARCH & PAGINADO */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
-                {/*<input
-                    type="text"
-                    placeholder="Buscar promociones..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="flex-1 max-w-md p-4 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
-                    disabled={loading}
-                />*/}
-                {totalPages > 1 && (
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            disabled={page === 1 || loading}
-                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                        >
-                            ‹
-                        </button>
-                        <span className="text-lg font-semibold px-4">
-                            Pg. {page} de {totalPages}
-                        </span>
-                        <button
-                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                            disabled={page === totalPages || loading}
-                            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center"
-                        >
-                            ›
-                        </button>
+            {/* 🔎 BUSCADOR PROMOCIONES */}
+                <div className="mb-8 flex justify-center">
+                    <div className="relative w-full max-w-lg">
+
+                        {/* icono */}
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                        </div>
+
+                        <input
+                            type="search"
+                            placeholder="Buscar promociones..."
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+
+                            onKeyDown={(e) => {
+
+                                if (e.key === "Enter") {
+                                    setSearch(searchInput)
+                                    setPage(1)
+                                    e.target.blur()
+                                }
+
+                                if (e.key === "Escape") {
+                                    setSearchInput('')
+                                    setSearch('')
+                                }
+
+                            }}
+
+                            className="
+                                w-full
+                                pl-12 pr-10
+                                py-3
+                                bg-white
+                                border border-gray-200
+                                rounded-2xl
+                                shadow-sm
+                                placeholder-gray-400
+                                transition-all
+                                focus:outline-none
+                                focus:border-emerald-400
+                                focus:ring-4
+                                focus:ring-emerald-100
+                            "
+                        />
+
+                        {/* limpiar */}
+                        {searchInput && (
+                            <button
+                                onClick={() => {
+                                    setSearchInput('')
+                                    setSearch('')
+                                    setPage(1)
+                                }}
+                                className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600"
+                            >
+                                ✕
+                            </button>
+                        )}
+
                     </div>
-                )}
-            </div>
+                </div>
+
+            {/* PAGINADO */}
+            {totalPages > 1 && (
+                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-3 sm:p-4 lg:p-6 shadow-md lg:shadow-lg flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4 mb-8">
+
+                    {/* ← Anterior */}
+                    <button
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 shadow-md"
+                        onClick={() => setPage(Math.max(1, page - 1))}
+                        disabled={page === 1 || loading}
+                    >
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+
+                    {/* Números */}
+                    <div className="hidden sm:flex gap-2">
+
+                        {(() => {
+
+                            const startPage = Math.max(1, page - 2);
+                            const endPage = Math.min(totalPages, page + 2);
+
+                            return Array.from({ length: endPage - startPage + 1 }, (_, i) => {
+
+                                const pageNum = startPage + i;
+
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setPage(pageNum)}
+                                        className={`w-10 h-10 lg:w-12 lg:h-12 rounded-xl font-bold transition-all flex items-center justify-center ${
+                                            pageNum === page
+                                                ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                                                : "bg-gray-100 text-gray-700 hover:bg-blue-100"
+                                        }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+
+                            });
+
+                        })()}
+
+                    </div>
+
+                    {/* Siguiente → */}
+                    <button
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 shadow-md"
+                        onClick={() => setPage(Math.min(totalPages, page + 1))}
+                        disabled={page === totalPages || loading}
+                    >
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+
+                    {/* Info */}
+                    <div className="hidden sm:flex text-gray-700 font-semibold bg-gray-100 px-4 py-2 rounded-xl border text-sm">
+                        Pg. <span className="text-blue-600 px-1">{page}</span> de <span className="text-purple-600 px-1">{totalPages}</span>
+                    </div>
+
+                </div>
+            )}
 
             {/* GRID PROMOCIONES */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 min-h-[400px]">
@@ -421,6 +530,73 @@ const Promociones = () => {
                     ))
                 )}
             </div>
+            
+            {/* PAGINADO */}
+            {totalPages > 1 && (
+                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl lg:rounded-3xl p-3 sm:p-4 lg:p-6 shadow-md lg:shadow-lg flex flex-wrap items-center justify-center gap-2 sm:gap-3 lg:gap-4 mb-8">
+
+                    {/* ← Anterior */}
+                    <button
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 shadow-md"
+                        onClick={() => setPage(Math.max(1, page - 1))}
+                        disabled={page === 1 || loading}
+                    >
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+
+                    {/* Números */}
+                    <div className="hidden sm:flex gap-2">
+
+                        {(() => {
+
+                            const startPage = Math.max(1, page - 2);
+                            const endPage = Math.min(totalPages, page + 2);
+
+                            return Array.from({ length: endPage - startPage + 1 }, (_, i) => {
+
+                                const pageNum = startPage + i;
+
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setPage(pageNum)}
+                                        className={`w-10 h-10 lg:w-12 lg:h-12 rounded-xl font-bold transition-all flex items-center justify-center ${
+                                            pageNum === page
+                                                ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                                                : "bg-gray-100 text-gray-700 hover:bg-blue-100"
+                                        }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+
+                            });
+
+                        })()}
+
+                    </div>
+
+                    {/* Siguiente → */}
+                    <button
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg sm:rounded-xl lg:rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 shadow-md"
+                        onClick={() => setPage(Math.min(totalPages, page + 1))}
+                        disabled={page === totalPages || loading}
+                    >
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+
+                    {/* Info */}
+                    <div className="hidden sm:flex text-gray-700 font-semibold bg-gray-100 px-4 py-2 rounded-xl border text-sm">
+                        Pg. <span className="text-blue-600 px-1">{page}</span> de <span className="text-purple-600 px-1">{totalPages}</span>
+                    </div>
+
+                </div>
+            )}
+
 
             {/* MODAL CREAR */}
             {showCreateModal && (
