@@ -1,4 +1,4 @@
-// Dashboard.jsx - COMPLETO con MEJOR RESPONSIVO ✅
+// Dashboard.jsx - COMPLETO con VUELTO INTEGRADO ✅
 import React, { useState, useEffect } from 'react';
 const apiURL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -6,6 +6,8 @@ const Dashboard = () => {
     const [dashboard, setDashboard] = useState(null);
     const [productosStock, setProductosStock] = useState([]);
     const [ventas, setVentas] = useState([]);
+    const [formasPago, setFormasPago] = useState([]);
+    const [vuelto, setVuelto] = useState({ total_vuelto: 0, transacciones_con_vuelto: 0 }); // ✅ NUEVO
     const [loading, setLoading] = useState(true);
     const [periodo, setPeriodo] = useState('turno');
 
@@ -41,10 +43,20 @@ const Dashboard = () => {
             const ventasRes = await fetch(`${apiURL}/dashboard/ventas?page=1&limit=10&filtro=${periodoFiltro}`);
             const ventasData = await ventasRes.json();
 
-            if (dashboardData.success && productosData.success && ventasData.success) {
+            // ✅ CARGAR FORMAS DE PAGO
+            const formasPagoRes = await fetch(`${apiURL}/dashboard/formas-pago?filtro=${periodoFiltro}`);
+            const formasPagoData = await formasPagoRes.json();
+
+            // ✅ CARGAR VUELTO
+            const vueltoRes = await fetch(`${apiURL}/dashboard/vuelto?filtro=${periodoFiltro}`);
+            const vueltoData = await vueltoRes.json();
+
+            if (dashboardData.success && productosData.success && ventasData.success && formasPagoData.success && vueltoData.success) {
                 setDashboard(dashboardData.data);
                 setProductosStock(productosData.data);
                 setVentas(ventasData.data);
+                setFormasPago(formasPagoData.data);
+                setVuelto(vueltoData.data); // ✅ NUEVO
                 setPeriodo(periodoFiltro);
             }
         } catch (error) {
@@ -136,8 +148,41 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* ✅ 4 CARTAS PRINCIPALES - RESPONSIVO MEJORADO */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 mb-12 sm:mb-16">
+                {/* ✅ SECCIÓN FORMAS DE PAGO - MISMO ESTILO QUE LAS 4 PRINCIPALES */}
+                {formasPago.length > 0 && (
+                    <div className="mb-12 sm:mb-16">
+                        <div className="flex items-center justify-between mb-4 sm:mb-6">
+                            <span className="text-2xl sm:text-3xl lg:text-4xl">💳</span>
+                            <span className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm shadow-lg whitespace-nowrap">
+                                FORMAS DE PAGO ({formasPago.length})
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+                            {formasPago.map((fp, index) => (
+                                <div key={fp.codigo || fp.id || index} className="group bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border-4 border-purple-200/50 backdrop-blur-xl h-full relative overflow-hidden">
+                                    <div className="flex items-center justify-between mb-4 sm:mb-6">
+                                        <span className="text-2xl sm:text-3xl lg:text-4xl">💳</span>
+                                        <span className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm shadow-lg whitespace-nowrap">
+                                            {fp.codigo?.toUpperCase() || 'FP'}
+                                        </span>
+                                    </div>
+                                    <p className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-black text-purple-600 mb-2 sm:mb-4 leading-tight">
+                                        ${formatDinero(fp.total_ventas)}
+                                    </p>
+                                    <p className="text-lg sm:text-xl font-semibold text-gray-700 text-sm sm:text-base">
+                                        {fp.nombre} • {fp.total_transacciones} trans.
+                                    </p>
+                                    <p className="text-sm sm:text-base font-bold text-purple-600 mt-2">
+                                        {fp.porcentaje}% del total
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* ✅ 5 CARTAS PRINCIPALES CON VUELTO */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 mb-12 sm:mb-16">
                     {/* 1. GASTOS OPERATIVOS */}
                     <div className="group bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border-4 border-amber-200/50 backdrop-blur-xl h-full">
                         <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -164,7 +209,40 @@ const Dashboard = () => {
                         <p className="text-lg sm:text-xl font-semibold text-gray-700 text-sm sm:text-base">Productos ({periodo})</p>
                     </div>
 
-                    {/* 3. VENTAS */}
+                    {/* ✅ 3. VUELTO */}
+                    <div className="group bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border-4 border-orange-200/50 backdrop-blur-xl h-full">
+                        <div className="flex items-center justify-between mb-4 sm:mb-6">
+                            <span className="text-2xl sm:text-3xl lg:text-4xl">💵</span>
+                            <span className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm shadow-lg whitespace-nowrap">VUELTO</span>
+                        </div>
+                        <p className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-black text-orange-600 mb-2 sm:mb-4 leading-tight">
+                            ${formatDinero(vuelto?.total_vuelto)}
+                        </p>
+                        <p className="text-lg sm:text-xl font-semibold text-gray-700 text-sm sm:text-base">
+                            {vuelto?.transacciones_con_vuelto || 0} transacciones
+                        </p>
+                    </div>
+
+                    {/* 4. FORMAS DE PAGO - TOTAL ACUMULADO (igual estilo que "VENTAS") */}
+                    <div className="group bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border-4 border-purple-200/50 backdrop-blur-xl h-full">
+                        <div className="flex items-center justify-between mb-4 sm:mb-6">
+                        <span className="text-2xl sm:text-3xl lg:text-4xl">💳</span>
+                        <span className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm shadow-lg whitespace-nowrap">
+                            FORMAS DE PAGO
+                        </span>
+                        </div>
+                        <p className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-black text-purple-600 mb-2 sm:mb-4 leading-tight">
+                        ${formatDinero(
+                            formasPago.reduce((acc, fp) => acc + (parseFloat(fp.total_ventas) || 0), 0)
+                        )}
+                        </p>
+                        <p className="text-lg sm:text-xl font-semibold text-gray-700 text-sm sm:text-base">
+                        {formasPago.length} formas de pago ({periodo})
+                        </p>
+                    </div>
+
+
+                    {/* 4. VENTAS */}
                     <div className="group bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border-4 border-emerald-200/50 backdrop-blur-xl h-full">
                         <div className="flex items-center justify-between mb-4 sm:mb-6">
                             <span className="text-2xl sm:text-3xl lg:text-4xl">💰</span>
@@ -178,7 +256,7 @@ const Dashboard = () => {
                         </p>
                     </div>
 
-                    {/* 4. UTILIDAD NETA */}
+                    {/* 5. UTILIDAD NETA */}
                     <div className="group bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 border-4 border-blue-200/50 backdrop-blur-xl h-full">
                         <div className="flex items-center justify-between mb-4 sm:mb-6">
                             <span className="text-2xl sm:text-3xl lg:text-4xl">📈</span>

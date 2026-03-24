@@ -57,34 +57,66 @@ const Cuentas = () => {
     const [searchProducto, setSearchProducto] = useState('');
     const [searchProductoInput, setSearchProductoInput] = useState('');
 
+    // 🆕 NUEVO MODAL DE ABONOS - CORREGIDO PARA ENDPOINT REAL
+    const [showAbonosModal, setShowAbonosModal] = useState(false);
+    // 🆕 1. INICIALIZAR MONTO CON total_pendiente
+    const [abonosForm, setAbonosForm] = useState({
+        total_abonado: 0, // ✅ Auto-monto
+        tipo_pago_id: 1,
+        forma_pago_id: 1,
+        referencia: 'EFECTIVO',
+        nota: ''
+    });
+    const [tiposPago, setTiposPago] = useState([]);
+    const [formasPago, setFormasPago] = useState([]);
+    const [abonosLoading, setAbonosLoading] = useState(false);
+    const [mensajeResultado, setMensajeResultado] = useState('');
+    const [mostrarVuelto, setMostrarVuelto] = useState(false);
+    const [pagoParcial, setPagoParcial] = useState(false);
+
+    //pestaña activa
+    const [pestañaActiva, setPestañaActiva] = useState('contado');
+    const [totalesCuentas, setTotalesCuentas] = useState({ contado: 0, credito: 0 });
+
     //FETCH PRINCIPALES
     const fetchCuentas = async (currentPage = 1, searchTerm = '') => {
         try {
             setLoading(true);
-
             const params = new URLSearchParams({
-                page: currentPage,
-                limit: 10
+            page: currentPage,
+            limit: 10,
             });
 
-            if (searchTerm && searchTerm.trim() !== '') {
-                params.append('search', searchTerm);
+            if (searchTerm.trim()) {
+            params.append('search', searchTerm);
             }
+
+            // 👇 NUEVO FILTRO por pestaña (contado o credito)
+            params.append('tipo_pago', pestañaActiva);
 
             const response = await fetch(`${apiURL}/cuentas?${params.toString()}`);
             const data = await response.json();
-
-            console.log('fetchCuentas response:', data);
 
             if (data.success) {
                 setCuentas(data.data);
                 setPagination(data.pagination);
             }
-
         } catch (error) {
             console.error('Error cargando cuentas:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchTotalesCuentas = async () => {
+        try {
+            const response = await fetch(`${apiURL}/cuentas/totales`);
+            const data = await response.json();
+            if (data.success) {
+            setTotalesCuentas(data.data);
+            }
+        } catch (error) {
+            console.error('Error cargando totales:', error);
         }
     };
 
@@ -159,9 +191,24 @@ const Cuentas = () => {
     //USEEFFECT PRINCIPALES
     // Effects
     useEffect(() => {
-        console.log('fetchCuentas triggered with:', { page, searchCuenta });
         fetchCuentas(page, searchCuenta);
-    }, [page, searchCuenta]);
+        fetchTotalesCuentas();
+    }, [page, searchCuenta, pestañaActiva]);
+
+   // 🆕 Solo cargar forma_pago (no tipo_pago)
+    useEffect(() => {
+        const cargarPagos = async () => {
+            try {
+            const formasRes = await fetch(`${apiURL}/forma_pago`).then(r => r.json());
+
+            if (formasRes.success) setFormasPago(formasRes.data);
+            } catch (error) {
+            console.error('Error cargando formas de pago:', error);
+            }
+        };
+        cargarPagos();
+    }, []);
+
 
     // useEffect(() => {
     //     const delayDebounceCuenta = setTimeout(() => {
@@ -247,6 +294,162 @@ const Cuentas = () => {
     }, [searchProductoInput]);
 
     //HANDLERS PRINCIPALES
+
+    //HANDLER para cambiar pestaña:
+    const handleCambiarPestaña = (nuevaPestaña) => {
+        setPestañaActiva(nuevaPestaña);
+        setPage(1); // Reset a página 1
+        setSearchCuenta(''); // Limpiar búsqueda
+    };
+
+    // ✅ handleCambiarTipoPago - SILENCIOSO
+    const handleCambiarTipoPago = async (cuentaId, nuevoTipo) => {
+        setUpdating(cuentaId);
+
+        try {
+            const response = await fetch(`${apiURL}/cuentas/${cuentaId}/tipo-pago`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tipo_pago: nuevoTipo })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // 👇 RECARGAR TODO DESDE API (sin actualizar local)
+                await Promise.all([
+                    fetchTotalesCuentas(), // Actualiza totales en header
+                    fetchCuentas(page, searchCuenta)  // Recarga lista actual
+                ]);
+            }
+            
+        } catch (error) {
+            console.error('Error:', error);
+        } finally {
+            setUpdating(null);
+        }
+    };
+
+    // ✅ HANDLER REFERENCIA AUTOMÁTICA
+    const handleFormaPagoChange = (formaId) => {
+        const formaSeleccionada = formasPago.find(f => f.id === formaId);
+        
+        setAbonosForm(prev => ({
+            ...prev,
+            forma_pago_id: formaId,
+            referencia: formaSeleccionada?.codigo || 'EFECTIVO'  // ✅ AUTO-referencia
+        }));
+    };
+
+    // 🆕 FUNCIÓN PARA ABRIR MODAL DE ABONOS
+    const handleAbrirAbonosModal = useCallback((cuenta) => {
+        setSelectedCuenta(cuenta);
+        setAbonosForm({
+            cuenta_id: cuenta.id,
+            total_abonado: '',
+            forma_pago_id: 1,
+            referencia: '',
+            nota: ''
+        });
+        setMensajeResultado('');
+        setMostrarVuelto(false);
+        setPagoParcial(false);
+        setShowAbonosModal(true);
+    }, []);
+
+    const handleProcesarAbono = async (e) => {
+        e.preventDefault();
+
+        if (!abonosForm.total_abonado || parseFloat(abonosForm.total_abonado) <= 0) {
+            alert('Ingresa un monto válido');
+            return;
+        }
+
+        try {
+            setAbonosLoading(true);
+
+            const response = await fetch(`${apiURL}/abonos-cuenta`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cuenta_id: selectedCuenta.id,
+                total_abonado: parseFloat(abonosForm.total_abonado),
+                forma_pago_id: parseInt(abonosForm.forma_pago_id),
+                referencia: abonosForm.referencia || null,
+                nota: abonosForm.nota || 'Abono registrado desde frontend'
+            })
+            });
+
+            if (!response.ok) {
+            const errorText = await response.text();
+            alert(`❌ Error ${response.status}: ${errorText}`);
+            return;
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+            const cuenta = data.data.cuenta;
+            const abono = data.data.abono;
+
+            // 🆕 MENSAJE (solo con forma de pago)
+            const formaPago = formasPago.find(f => f.id === abono.forma_pago_id);
+
+            if (cuenta.estado === 'pagado') {
+                setMensajeResultado(
+                `✅ ¡Cuenta pagada con éxito! ` +
+                `Abono: $${formatDinero(abono.total_abonado)} ` +
+                `${formaPago?.codigo || 'EFECTIVO'} ` +
+                (cuenta.total_vuelto > 0
+                    ? `| Cambio: $${formatDinero(cuenta.total_vuelto)}`
+                    : '')
+                );
+                setMostrarVuelto(true);
+                setPagoParcial(false);
+
+                setTimeout(() => {
+                    handleCerrarAbonosModal();
+                    fetchTotalesCuentas();
+                    fetchCuentas(page, searchCuenta);
+                }, 2000);
+            } else {
+                setMensajeResultado(
+                `✅ Abono registrado: $${formatDinero(abono.total_abonado)} ` +
+                `${formaPago?.codigo || 'EFECTIVO'} ` +
+                `| Saldo restante: $${formatDinero(cuenta.total_pendiente)}`
+                );
+                setPagoParcial(true);
+                setMostrarVuelto(false);
+
+                // 👇 ACTUALIZAR LOCALMENTE la cuenta específica
+                selectedCuenta.total_pendiente = cuenta.total_pendiente; // Actualiza el pendiente
+
+                setAbonosForm(prev => ({
+                ...prev,
+                total_abonado: formatDinero(cuenta.total_pendiente),
+                nota: ''
+                }));
+
+                setSelectedCuenta(cuenta);
+            }
+            }
+        } catch (error) {
+            alert(`❌ Error inesperado: ${error.message}`);
+        } finally {
+            setAbonosLoading(false);
+        }
+    };
+
+     // 🆕 HANDLER PARA CERRAR MODAL DE ABONOS
+    const handleCerrarAbonosModal = () => {
+        setShowAbonosModal(false);
+        setSelectedCuenta(null);
+        setAbonosForm({ monto: '', observacion: '' });
+        setMensajeResultado('');
+        setMostrarVuelto(false);
+        setPagoParcial(false);
+    };
+
     // ✅ HANDLERS DETALLE SIMPLIFICADOS
     const handleAumentarCantidadDetalle = (id) => {
         // Actualizar productos originales
@@ -453,24 +656,33 @@ const Cuentas = () => {
     };
 
     // Handlers Cuentas (CORREGIDO)
-    const handlePagarCuenta = async (cuentaId) => {
-        try {
-        setUpdating(cuentaId);
-        const response = await fetch(`${apiURL}/cuentas/${cuentaId}/pagar`, {
-            method: 'PATCH'
-        });
-        const data = await response.json();
+    // const handlePagarCuenta = async (cuentaId) => {
+    //     try {
+    //     setUpdating(cuentaId);
+    //     const response = await fetch(`${apiURL}/cuentas/${cuentaId}/pagar`, {
+    //         method: 'PATCH'
+    //     });
+    //     const data = await response.json();
         
-        if (data.success) {
-            await Promise.all([
-                fetchCuentas(page),
-                fetchMesas()
-            ]);
-        }
-        } catch (error) {
-        console.error('Error pagar:', error);
-        } finally {
-        setUpdating(null);
+    //     if (data.success) {
+    //         await Promise.all([
+    //             fetchCuentas(page),
+    //             fetchMesas()
+    //         ]);
+    //     }
+    //     } catch (error) {
+    //     console.error('Error pagar:', error);
+    //     } finally {
+    //     setUpdating(null);
+    //     }
+    // };
+
+     // ✅ NUEVO handlePagarCuenta - Abre modal de abonos
+    const handlePagarCuenta = (cuentaId) => {
+        // Buscar la cuenta en la lista para obtener sus datos completos
+        const cuenta = cuentas.find(c => c.id === cuentaId);
+        if (cuenta) {
+        handleAbrirAbonosModal(cuenta);
         }
     };
 
@@ -675,67 +887,73 @@ const Cuentas = () => {
                     </div>
                 </div>
 
-                {/* 🔎 BUSCADOR */}
-                <div className="mb-8 flex justify-center">
-                    <div className="relative w-full max-w-lg">
-
-                        {/* Icono */}
-                        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </div>
-
-                        <input
-                            type="search"
-                            placeholder="Buscar cliente o número de cuenta..."
-                            value={searchCuentaInput}
-                            onChange={(e) => setSearchCuentaInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    setSearchCuenta(searchCuentaInput)
-                                    setPage(1)
-                                    e.target.blur()
-                                }
-                            }}
-                            className="
-                                w-full
-                                pl-12 pr-10
-                                py-3
-                                bg-white
-                                border border-gray-200
-                                rounded-2xl
-                                shadow-sm
-
-                                text-gray-800
-                                placeholder-gray-400
-
-                                transition-all duration-200
-
-                                focus:outline-none
-                                focus:border-blue-400
-                                focus:ring-4
-                                focus:ring-blue-100
-                                focus:shadow-md
-                            "
-                        />
-
-                        {/* Botón limpiar */}
-                        {searchCuentaInput && (
-                            <button
-                                onClick={() => {
-                                    setSearchCuentaInput('')
-                                    setSearchCuenta('')
-                                    setPage(1)
-                                }}
-                                className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600"
+                {/* 👇 BUSCADOR + PESTAÑAS */}
+                <div className="mb-8 flex flex-col gap-6">
+                  {/* PESTAÑAS CONTADO / CRÉDITO */}
+                    <div className="flex bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                        <button
+                            onClick={() => handleCambiarPestaña('contado')}
+                            className={`flex-1 py-3 px-4 font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
+                                pestañaActiva === 'contado'
+                                ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg'
+                                : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
+                            }`}
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        )}
+                            💵 Al Contado
+                            <span className="text-xs bg-white/30 px-2 py-1 rounded-full">
+                                {totalesCuentas.contado}
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => handleCambiarPestaña('credito')}
+                            className={`flex-1 py-3 px-4 font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
+                                pestañaActiva === 'credito'
+                                ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg'
+                                : 'text-gray-700 hover:bg-purple-50 hover:text-purple-700'
+                            }`}
+                            >
+                            💳 Al Crédito
+                            <span className="text-xs bg-white/30 px-2 py-1 rounded-full">
+                                {totalesCuentas.credito}
+                            </span>
+                        </button>
+                    </div>
 
+                    {/* BUSCADOR - IGUAL QUE ANTES */}
+                    <div className="relative w-full max-w-lg mx-auto">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        </div>
+                        <input
+                        type="search"
+                        placeholder="Buscar cliente o número de cuenta..."
+                        value={searchCuentaInput}
+                        onChange={(e) => setSearchCuentaInput(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                            setSearchCuenta(searchCuentaInput);
+                            setPage(1);
+                            e.target.blur();
+                            }
+                        }}
+                        className="w-full pl-12 pr-10 py-3 bg-white border border-gray-200 rounded-2xl shadow-sm text-gray-800 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 focus:shadow-md"
+                        />
+                        {searchCuentaInput && (
+                        <button
+                            onClick={() => {
+                            setSearchCuentaInput('');
+                            setSearchCuenta('');
+                            setPage(1);
+                            }}
+                            className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                        )}
                     </div>
                 </div>
 
@@ -788,74 +1006,91 @@ const Cuentas = () => {
                     </div>
                 )}
 
-                {/* GRID CUENTAS */}
+                {/* GRID CUENTAS - SOLO POSICIONES BOTONES */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {cuentas.map(cuenta => (
-                    <div key={cuenta.id} className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:-translate-y-1">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold text-gray-900 line-clamp-1">Cuenta #{cuenta.id}</h3>
-                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                                cuenta.estado === 'pagado' 
-                                ? 'bg-emerald-100 text-emerald-800' 
-                                : 'bg-amber-100 text-amber-800'
-                            }`}>
-                                {cuenta.estado === 'pagado' ? '✅ Pagada' : '⏳ Pendiente'}
-                            </span>
-                        </div>
+                    {cuentas.map(cuenta => {
+                        const esContado = cuenta.tipo_pago == 'contado';
+                        console.log(esContado);
                         
-                        <div className="grid grid-cols-1 gap-4 mb-6">
-                            <div className="flex items-center">
-                                <span className="text-lg text-gray-600 font-medium min-w-[80px]">Cliente:</span>
-                                <span className="text-lg font-bold text-gray-600 ms-2">{cuenta.cliente.toUpperCase()}</span>
-                            </div>
-
-                            {cuenta.mesa_id && (
-                                <div className="flex items-center">
-                                <span className="text-lg text-gray-600 font-medium min-w-[80px]">🪑 Mesa:</span>
-                                <span className="text-lg font-bold text-gray-600 ms-2">{cuenta.numero_mesa}</span>
+                        return (
+                            <div key={cuenta.id} className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:-translate-y-1">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-bold text-gray-900 line-clamp-1">Cuenta #{cuenta.id}</h3>
+                                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                                        cuenta.estado === 'pagado' 
+                                            ? 'bg-emerald-100 text-emerald-800' 
+                                            : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                        {cuenta.estado === 'pagado' ? '✅ Pagada' : '⏳ Pendiente'}
+                                    </span>
                                 </div>
-                            )}
+                                
+                                <div className="grid grid-cols-1 gap-4 mb-6">
+                                    <div className="flex items-center">
+                                        <span className="text-lg text-gray-600 font-medium min-w-[80px]">Cliente:</span>
+                                        <span className="text-lg font-bold text-gray-600 ms-2">{cuenta.cliente.toUpperCase()}</span>
+                                    </div>
+                                    {cuenta.mesa_id && (
+                                        <div className="flex items-center">
+                                            <span className="text-lg text-gray-600 font-medium min-w-[80px]">🪑 Mesa:</span>
+                                            <span className="text-lg font-bold text-gray-600 ms-2">{cuenta.numero_mesa}</span>
+                                        </div>
+                                    )}
+                                    <div className={`flex items-center p-2 rounded-xl ${
+                                        esContado 
+                                            ? 'bg-emerald-50 border border-emerald-200' 
+                                            : 'bg-purple-50 border border-purple-200'
+                                    }`}>
+                                        <span className="text-lg font-bold min-w-[70px]">
+                                            {esContado ? '💰 Contado' : '📜 Crédito'}
+                                        </span>
+                                    </div>
+                                </div>
 
-                            <div className="flex items-start">
-                                <span className="text-sm font-bold text-gray-600">{formatFechaUTCWithTime(cuenta.fecha_creado)}</span>
+                                <div className="text-2xl lg:text-3xl font-bold text-emerald-600 mb-6 bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-xl">
+                                    ${formatDinero(cuenta.total_pendiente)}
+                                </div>
+
+                                {/* ✅ FILA 1: ABONO SOLO */}
+                                {cuenta.estado === 'pendiente' && (
+                                    <div className="flex gap-3 mb-4">
+                                        <button
+                                            onClick={() => handlePagarCuenta(cuenta.id)}
+                                            disabled={updating === cuenta.id}
+                                            className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            💰 Abono
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* ✅ FILA 2: Crédito/Contado (izq) + Detalle (der) */}
+                                <div className="flex gap-3 pt-2">
+                                    {/* IZQUIERDA: Crédito/Contado - TU LÓGICA ORIGINAL */}
+                                    <button
+                                        onClick={() => handleCambiarTipoPago(cuenta.id, esContado ? 'credito' : 'contado')}
+                                        disabled={updating === cuenta.id}
+                                        className={`flex-1 font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm flex items-center justify-center gap-2 ${
+                                            esContado
+                                                ? 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white border-rose-400'
+                                                : 'bg-gradient-to-r from-sky-500 to-cyan-600 hover:from-sky-600 hover:to-cyan-700 text-white border-sky-400'
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                        <span>{esContado ? '📜 Crédito' : '💰 Contado'}</span>
+                                    </button>
+
+                                    {/* DERECHA: Detalle */}
+                                    <button 
+                                        onClick={() => handleVerDetalle(cuenta.id)}
+                                        disabled={loadingDetail === cuenta.id}
+                                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        👁️ Detalle
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-
-                        <div className="text-2xl lg:text-3xl font-bold text-emerald-600 mb-6 bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-xl">
-                        ${formatDinero(cuenta.total)}
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                        {cuenta.estado === 'pendiente' && (
-                            <button
-                            onClick={() => handlePagarCuenta(cuenta.id)}
-                            disabled={updating === cuenta.id}
-                            className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                            {updating === cuenta.id ? (
-                                <>
-                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                </svg>
-                                Pagando...
-                                </>
-                            ) : (
-                                '💰 Marcar Pagado'
-                            )}
-                            </button>
-                        )}
-                        
-                        <button 
-                            onClick={() => handleVerDetalle(cuenta.id)}
-                            disabled={loadingDetail === cuenta.id}
-                            className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-sm disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                            👁️ Ver Detalle
-                        </button>
-                        </div>
-                    </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* PAGINACIÓN CUENTAS */}
@@ -922,6 +1157,238 @@ const Cuentas = () => {
                 )}
             </div>
         </div>
+
+        {/* 🆕 MODAL DE ABONOS - VERTICAL, FORMA DE PAGO ARRIBA, REFERENCIA ABAJO */}
+        {showAbonosModal && selectedCuenta?.cliente && (
+        <>
+            <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] animate-in fade-in-0 zoom-in-95 duration-200"
+            onClick={handleCerrarAbonosModal}
+            />
+            <div className="fixed inset-0 z-[80] p-4 sm:p-6 flex items-center justify-center max-h-[95vh] overflow-y-auto">
+            <div className="w-full max-w-2xl max-h-[95vh] bg-white rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200 flex flex-col">
+                {/* HEADER */}
+                <div className="p-6 bg-gradient-to-r from-emerald-500 to-green-600 text-white border-b border-emerald-600/50">
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                    <h2 className="text-2xl font-bold">💰 Realizar Abono</h2>
+                    <p className="text-emerald-100">
+                        Cuenta #{selectedCuenta.id} - {selectedCuenta.cliente?.toUpperCase() || 'CLIENTE'}
+                    </p>
+                    </div>
+                    <button
+                    onClick={handleCerrarAbonosModal}
+                    className="p-2 rounded-2xl hover:bg-white/20 transition-all"
+                    >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                        />
+                    </svg>
+                    </button>
+                </div>
+
+                {/* SALDO ACTUAL */}
+                <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4">
+                    <div className="flex justify-between items-baseline mb-2">
+                    <span className="text-sm opacity-90">Saldo pendiente:</span>
+                    <span
+                        className={`text-sm font-bold px-3 py-1 rounded-full ${
+                        selectedCuenta.estado === 'pagado'
+                            ? 'bg-emerald-200 text-emerald-800'
+                            : 'bg-amber-200 text-amber-800'
+                        }`}
+                    >
+                        {selectedCuenta.estado === 'pagado' ? 'PAGADA' : 'PENDIENTE'}
+                    </span>
+                    </div>
+                    <p className="text-3xl font-bold">
+                    ${formatDinero(selectedCuenta.total_pendiente || selectedCuenta.total)}
+                    </p>
+                    <p className="text-sm opacity-75 mt-1">
+                    Total pagado: ${formatDinero(selectedCuenta.total_pagado || 0)}
+                    </p>
+                </div>
+                </div>
+
+                {/* FORMULARIO – VERTICAL */}
+                <div className="p-6 flex-1 overflow-y-auto">
+                <form onSubmit={handleProcesarAbono} className="space-y-6">
+                    {/* 1. FORMAS DE PAGO – ARRIBA Y SIN SCROLL */}
+                    <div className="grid grid-cols-2 gap-4">
+                    {formasPago.map((forma) => (
+                        <button
+                        key={forma.id}
+                        type="button"
+                        onClick={() => handleFormaPagoChange(forma.id)}
+                        className={`group relative p-3 rounded-2xl font-semibold text-sm transition-all duration-200 border-2 shadow-md hover:shadow-xl flex flex-col items-center justify-center gap-2 text-center ${
+                            abonosForm.forma_pago_id == forma.id
+                            ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white border-emerald-500 shadow-emerald-500/30 scale-105'
+                            : 'bg-gradient-to-br from-gray-50 to-white text-gray-700 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 hover:scale-105'
+                        }`}
+                        disabled={mostrarVuelto}
+                        >
+                        {/* Check */}
+                        {abonosForm.forma_pago_id == forma.id && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                                />
+                            </svg>
+                            </div>
+                        )}
+
+                        {/* Icono */}
+                        <div className="w-10 h-10 rounded-lg bg-white/40 backdrop-blur-sm flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                            {forma.codigo === 'EFECTIVO' && '💵'}
+                            {forma.codigo === 'TRANSFERENCIA' && '🏦'}
+                            {forma.codigo === 'CHEQUE' && '📄'}
+                            {forma.codigo === 'TARJETA DE CREDITO' && '💳'}
+                            {forma.codigo === 'TARJETA DE DEBITO' && '🪪'}
+                        </div>
+
+                        {/* Código + nombre */}
+                        <div className="text-center">
+                            <div className="font-bold text-sm truncate">{forma.codigo}</div>
+                            {forma.nombre && (
+                            <div className="text-xs opacity-90 leading-4 mt-0.5 truncate">
+                                {forma.nombre}
+                            </div>
+                            )}
+                        </div>
+                        </button>
+                    ))}
+                    </div>
+
+                    {/* 2. MONTO DEL ABONO */}
+                    <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        💵 Monto del abono *
+                    </label>
+                    <div className="relative">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-600 font-bold text-xl">
+                        $
+                        </span>
+                        <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={abonosForm.total_abonado}
+                        onChange={(e) =>
+                            setAbonosForm({ ...abonosForm, total_abonado: e.target.value })
+                        }
+                        placeholder="0.00"
+                        className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/30 focus:border-emerald-500 text-xl font-bold text-gray-900 text-right bg-gradient-to-r from-gray-50 to-white shadow-md transition-all"
+                        disabled={mostrarVuelto}
+                        />
+                    </div>
+                    </div>
+
+                    {/* 3. REFERENCIA – ABAJO DEL MONTO, PERO EN VERTICAL */}
+                    <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        🧾 Referencia
+                    </label>
+                    <div className="relative">
+                        <input
+                        type="text"
+                        value={abonosForm.referencia || 'EFECTIVO'}
+                        readOnly
+                        className="w-full px-4 py-3 pr-12 bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-300 rounded-xl text-gray-700 font-semibold text-sm cursor-not-allowed shadow-sm"
+                        disabled={mostrarVuelto}
+                        />
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-semibold">
+                            AUTO
+                        </span>
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Se genera según forma de pago</p>
+                    </div>
+
+                    {/* 4. MENSAJE RESULTADO */}
+                    {mensajeResultado && (
+                    <div
+                        className={`p-4 rounded-2xl text-sm font-semibold ${
+                        mostrarVuelto
+                            ? 'bg-emerald-100 border-2 border-emerald-400 text-emerald-800'
+                            : pagoParcial
+                            ? 'bg-amber-100 border-2 border-amber-400 text-amber-800 animate-pulse'
+                            : ''
+                        }`}
+                    >
+                        {mensajeResultado}
+                    </div>
+                    )}
+
+                    {/* 5. NOTA */}
+                    <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        📝 Nota (opcional)
+                    </label>
+                    <textarea
+                        rows="3"
+                        value={abonosForm.nota}
+                        onChange={(e) => setAbonosForm({ ...abonosForm, nota: e.target.value })}
+                        placeholder="Pago parcial, propina, adelanto, etc..."
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/30 focus:border-emerald-500 resize-vertical text-base"
+                        disabled={mostrarVuelto}
+                    />
+                    </div>
+
+                    {/* 6. BOTONES – IGUAL QUE ANTES */}
+                    <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <button
+                        type="button"
+                        onClick={handleCerrarAbonosModal}
+                        disabled={abonosLoading || mostrarVuelto}
+                        className="flex-1 bg-white border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-bold py-4 px-8 rounded-2xl hover:shadow-xl transition-all duration-300 disabled:opacity-50 text-base shadow-md"
+                    >
+                        Cancelar
+                    </button>
+                    {!mostrarVuelto && (
+                        <button
+                        type="submit"
+                        disabled={!abonosForm.total_abonado || parseFloat(abonosForm.total_abonado) <= 0 || abonosLoading}
+                        className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-4 px-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
+                        >
+                        {abonosLoading ? (
+                            <>
+                            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                                />
+                                <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                />
+                            </svg>
+                            Procesando...
+                            </>
+                        ) : (
+                            '💳 Registrar Abono'
+                        )}
+                        </button>
+                    )}
+                    </div>
+                </form>
+                </div>
+            </div>
+            </div>
+        </>
+        )}
 
         {/* MODAL NUEVA CUENTA */}
         {showCreateModal && (
